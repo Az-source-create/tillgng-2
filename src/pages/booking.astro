@@ -1,0 +1,622 @@
+---
+import Layout from '../layouts/Layout.astro';
+import BookingInfo from '../components/BookingInfo.astro';
+---
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+<Layout>
+  <div class="booking-page">
+    <div class="booking-header">
+      <h1>Your Booking</h1>
+      <BookingInfo />
+    </div>
+    
+    <div class="booking-container">
+      <div id="booking-items">
+        <!-- Items will be loaded here -->
+      </div>
+      
+      <div id="empty-booking" style="display: none;">
+        <p>Your booking is empty.</p>
+        <a href="/" class="back-button">Browse Products</a>
+      </div>
+      
+      <div id="booking-actions" style="display: none;">
+        <button id="clear-booking" class="danger-button">Clear Booking</button>
+        <a href="/" class="back-button">Back to Products</a>
+      </div>
+      
+      <div id="personal-info-form" style="display: none;">
+        <h2>Scheduling</h2>
+        <form id="booking-form">
+          <div class="form-dates">
+            <div class="form-group">
+              <label for="pickupDateTime">Pickup Date and Time</label>
+              <input type="text" id="pickupDateTime" name="pickupDateTime" class="flatpickr" placeholder="Select date & time" data-input required>
+              <small class="datetime-format-hint">Click to select date and time</small>
+            </div>
+            
+            <div class="form-group">
+              <label for="returnDateTime">Return Date and Time</label>
+              <input type="text" id="returnDateTime" name="returnDateTime" class="flatpickr" placeholder="Select date & time" data-input required>
+              <small class="datetime-format-hint">Click to select date and time</small>
+            </div>
+          </div>
+          
+          <h2>Your Information</h2>
+          <div class="form-group">
+            <label for="fullName">Full Name</label>
+            <input type="text" id="fullName" name="fullName" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="phone">Phone Number</label>
+            <input type="tel" id="phone" name="phone" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="address">Address</label>
+            <textarea id="address" name="address" required></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label for="notes">Additional Notes</label>
+            <textarea id="notes" name="notes"></textarea>
+          </div>
+          
+          <button type="submit" class="primary-button">Submit Booking</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Dynamically import to avoid client/server mismatch
+    const { initBookingSystem, saveBooking, submitBooking } = await import('../utils/api.js');
+    // Get booking from localStorage
+    const booking = initBookingSystem();
+    const bookingItemsContainer = document.getElementById('booking-items');
+    const emptyBookingMessage = document.getElementById('empty-booking');
+    const bookingActions = document.getElementById('booking-actions');
+    
+    // Display booking items or empty message
+    if (booking.items.length === 0) {
+      emptyBookingMessage.style.display = 'block';
+    } else {
+      // Create booking list
+      const bookingList = document.createElement('div');
+      bookingList.className = 'booking-list';
+      
+      booking.items.forEach(item => {
+        const itemElement = document.createElement('div');
+        itemElement.className = 'booking-item';
+        
+        itemElement.innerHTML = `
+          <div class="item-details">
+            <h3>${item.name}</h3>
+            <div class="item-quantity">
+              <button class="quantity-btn decrease" data-id="${item.id}">-</button>
+              <span class="quantity">${item.quantity}</span>
+              <button class="quantity-btn increase" data-id="${item.id}">+</button>
+            </div>
+          </div>
+          <button class="remove-item" data-id="${item.id}">Remove</button>
+        `;
+        
+        bookingList.appendChild(itemElement);
+      });
+      
+      bookingItemsContainer.appendChild(bookingList);
+      bookingActions.style.display = 'flex';
+      
+      // Show the personal info form if there are items in the booking
+      const personalInfoForm = document.getElementById('personal-info-form');
+      personalInfoForm.style.display = 'block';
+      
+      // Set up event listeners for quantity buttons
+      document.querySelectorAll('.quantity-btn').forEach(button => {
+        button.addEventListener('click', e => {
+          const id = e.target.dataset.id;
+          const isIncrease = e.target.classList.contains('increase');
+          const item = booking.items.find(item => item.id === id);
+          
+          if (item) {
+            if (isIncrease) {
+              item.quantity += 1;
+              booking.totalCount += 1;
+            } else if (item.quantity > 1) {
+              item.quantity -= 1;
+              booking.totalCount -= 1;
+            }
+            
+            // Update UI
+            const quantityElement = e.target.parentElement.querySelector('.quantity');
+            quantityElement.textContent = item.quantity;
+            
+            // Save updated booking
+            saveBooking(booking);
+          }
+        });
+      });
+      
+      // Set up event listeners for remove buttons
+      document.querySelectorAll('.remove-item').forEach(button => {
+        button.addEventListener('click', e => {
+          const id = e.target.dataset.id;
+          const itemIndex = booking.items.findIndex(item => item.id === id);
+          
+          if (itemIndex !== -1) {
+            // Update total count and remove item
+            booking.totalCount -= booking.items[itemIndex].quantity;
+            booking.items.splice(itemIndex, 1);
+            
+            // Remove from UI
+            e.target.closest('.booking-item').remove();
+            
+            // If booking is now empty, show empty message
+            if (booking.items.length === 0) {
+              bookingList.remove();
+              emptyBookingMessage.style.display = 'block';
+              bookingActions.style.display = 'none';
+              personalInfoForm.style.display = 'none';
+            }
+            
+            // Save updated booking
+            saveBooking(booking);
+          }
+        });
+      });
+      
+      // Set up clear booking button
+      document.getElementById('clear-booking').addEventListener('click', () => {
+        booking.items = [];
+        booking.totalCount = 0;
+        
+        // Update UI
+        bookingList.remove();
+        emptyBookingMessage.style.display = 'block';
+        bookingActions.style.display = 'none';
+        personalInfoForm.style.display = 'none';
+        
+        // Save empty booking
+        saveBooking(booking);
+      });
+      
+      // Set up Flatpickr datetime pickers with customized format
+      
+      // Ensure the locale has Monday as the first day of the week but in English
+      const customLocale = {
+        weekdays: {
+          shorthand: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+          longhand: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+        },
+        months: {
+          shorthand: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+          longhand: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+        },
+        firstDayOfWeek: 1,         // This is the key setting: 1 = Monday (instead of 0 = Sunday)
+        ordinal: function(nth) {
+          const s = nth % 100;
+          if (s > 3 && s < 21) return "th";
+          switch (s % 10) {
+            case 1: return "st";
+            case 2: return "nd";
+            case 3: return "rd";
+            default: return "th";
+          }
+        },
+        rangeSeparator: " to ",
+        weekAbbreviation: "Wk",
+        scrollTitle: "Scroll to increment",
+        toggleTitle: "Click to toggle",
+        time_24hr: true           // Use 24-hour time format
+      };
+      
+      // Register our custom locale
+      flatpickr.localize(customLocale);
+      
+      // Calculate default dates - pickup date defaults to tomorrow, return date to 7 days after pickup
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(10, 0, 0, 0); // Set to 10:00 AM
+      
+      const nextWeek = new Date(tomorrow);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      nextWeek.setHours(16, 0, 0, 0); // Set to 4:00 PM
+      
+      // Initialize Flatpickr for pickup datetime
+      const pickupFlatpickr = flatpickr("#pickupDateTime", {
+        enableTime: true,          // Enable time selection
+        dateFormat: "d-m-Y H:i",   // DD-MM-YYYY HH:MM format
+        time_24hr: true,           // Use 24 hour time
+        minuteIncrement: 15,       // 15 minute increments
+        defaultDate: tomorrow,     // Default to tomorrow
+        allowInput: true,          // Allow manual input
+        weekNumbers: true,         // Show week numbers
+        position: "auto",          // Auto-position the calendar
+        onChange: function(selectedDates, dateStr) {
+          // Update the min date for the return datetime picker
+          if (selectedDates[0]) {
+            // Make sure return date is at least same as pickup date
+            const minReturnDate = new Date(selectedDates[0]);
+            returnFlatpickr.set("minDate", minReturnDate);
+            
+            // If current return date is before pickup, set it to 7 days later
+            const currentReturnDate = returnFlatpickr.selectedDates[0];
+            if (!currentReturnDate || currentReturnDate < minReturnDate) {
+              const newReturnDate = new Date(minReturnDate);
+              newReturnDate.setDate(minReturnDate.getDate() + 7);
+              returnFlatpickr.setDate(newReturnDate);
+            }
+          }
+        }
+      });
+      
+      // Initialize Flatpickr for return datetime
+      const returnFlatpickr = flatpickr("#returnDateTime", {
+        enableTime: true,          // Enable time selection
+        dateFormat: "d-m-Y H:i",   // DD-MM-YYYY HH:MM format
+        time_24hr: true,           // Use 24 hour time
+        minuteIncrement: 15,       // 15 minute increments
+        defaultDate: nextWeek,     // Default to next week
+        allowInput: true,          // Allow manual input
+        weekNumbers: true,         // Show week numbers
+        position: "auto",          // Auto-position the calendar
+        minDate: tomorrow          // Minimum date is the pickup date
+      });
+      
+      // Set up form submission
+      document.getElementById('booking-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        // Show loading state
+        const submitButton = e.target.querySelector('button[type="submit"]');
+        const originalButtonText = submitButton.innerHTML;
+        submitButton.disabled = true;
+        submitButton.innerHTML = 'Submitting...';
+        
+        try {
+          // Validate booking has items
+          if (booking.items.length === 0) {
+            throw new Error('Your booking is empty. Please add items to your booking before submitting.');
+          }
+          
+          // Collect form data
+          const formData = {
+            // Scheduling information
+            pickupDateTime: pickupFlatpickr.selectedDates[0],
+            pickupDateTimeFormatted: document.getElementById('pickupDateTime').value,
+            returnDateTime: returnFlatpickr.selectedDates[0],
+            returnDateTimeFormatted: document.getElementById('returnDateTime').value,
+            
+            // Personal information
+            fullName: document.getElementById('fullName').value,
+            email: document.getElementById('email').value,
+            phone: document.getElementById('phone').value,
+            address: document.getElementById('address').value,
+            notes: document.getElementById('notes').value,
+            
+            // Booking items
+            bookingItems: booking.items
+          };
+          
+          // For development/testing, log the data
+          console.log('Submitting booking data:', formData);
+          
+          // Submit booking to NocoDB
+          console.log('Calling submitBooking with form data');
+          const result = await submitBooking(formData);
+          console.log('Received result from submitBooking:', result);
+          
+          // Show success message
+          alert('Booking submitted successfully!');
+          
+          // Clear the booking
+          booking.items = [];
+          booking.totalCount = 0;
+          saveBooking(booking);
+          
+          // Redirect to home page with success parameter
+          window.location.href = '/?booking=success';
+          
+        } catch (error) {
+          // Show error message with more details for debugging
+          console.error('Submission error details:', error);
+          const errorMessage = error.message || 'Unknown error';
+          
+          // Create a more user-friendly message
+          alert(`Error submitting booking: ${errorMessage}\n\nPlease try again or contact support if the problem persists.`);
+        } finally {
+          // Reset button state
+          submitButton.disabled = false;
+          submitButton.innerHTML = originalButtonText;
+        }
+      });
+    }
+  });
+</script>
+
+<style>
+  .booking-page {
+    padding: 2rem 1rem;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  
+  .booking-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+  }
+  
+  h1 {
+    font-size: 2rem;
+    margin: 0;
+    background: linear-gradient(83.21deg, #3245ff 0%, #bc52ee 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .booking-container {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    padding: 2rem;
+  }
+  
+  .booking-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .booking-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .booking-item:last-child {
+    border-bottom: none;
+  }
+  
+  .item-details {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+  }
+  
+  .item-details h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #111827;
+  }
+  
+  .item-quantity {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .quantity-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    cursor: pointer;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .quantity {
+    min-width: 30px;
+    text-align: center;
+    font-weight: 500;
+  }
+  
+  .remove-item {
+    background: none;
+    border: none;
+    color: #ef4444;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  
+  #empty-booking {
+    text-align: center;
+    padding: 2rem 0;
+  }
+  
+  #booking-actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2rem;
+    border-top: 1px solid #eee;
+    padding-top: 1.5rem;
+  }
+  
+  .back-button {
+    display: inline-block;
+    padding: 0.6rem 1.2rem;
+    background: #f3f4f6;
+    color: #111827;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: background 0.2s;
+  }
+  
+  .back-button:hover {
+    background: #e5e7eb;
+  }
+  
+  .danger-button {
+    padding: 0.6rem 1.2rem;
+    background: #fee2e2;
+    color: #ef4444;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  
+  .danger-button:hover {
+    background: #fecaca;
+  }
+  
+  /* Personal Info Form Styles */
+  #personal-info-form {
+    margin-top: 2rem;
+    border-top: 1px solid #eee;
+    padding-top: 1.5rem;
+  }
+  
+  #personal-info-form h2 {
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+    color: #111827;
+  }
+  
+  .form-dates {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .form-group {
+    margin-bottom: 1.25rem;
+  }
+  
+  .form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #111827;
+  }
+  
+  .form-group input,
+  .form-group textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #f9fafb;
+    font-size: 1rem;
+  }
+  
+  .form-group textarea {
+    min-height: 100px;
+    resize: vertical;
+  }
+  
+  .time-format-hint,
+  .date-format-hint,
+  .datetime-format-hint {
+    display: block;
+    font-size: 0.8rem;
+    color: #6b7280;
+    margin-top: 0.25rem;
+  }
+  
+  /* Flatpickr customization */
+  .flatpickr-input {
+    cursor: pointer;
+    background-color: #f9fafb;
+  }
+  
+  /* Override some flatpickr styles to match our design */
+  .flatpickr-calendar {
+    font-family: inherit;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(229, 231, 235, 0.8);
+  }
+  
+  .flatpickr-day.selected,
+  .flatpickr-day.startRange,
+  .flatpickr-day.endRange,
+  .flatpickr-day.selected.inRange,
+  .flatpickr-day.startRange.inRange,
+  .flatpickr-day.endRange.inRange,
+  .flatpickr-day.selected:focus,
+  .flatpickr-day.startRange:focus,
+  .flatpickr-day.endRange:focus,
+  .flatpickr-day.selected:hover,
+  .flatpickr-day.startRange:hover,
+  .flatpickr-day.endRange:hover,
+  .flatpickr-day.selected.prevMonthDay,
+  .flatpickr-day.startRange.prevMonthDay,
+  .flatpickr-day.endRange.prevMonthDay,
+  .flatpickr-day.selected.nextMonthDay,
+  .flatpickr-day.startRange.nextMonthDay,
+  .flatpickr-day.endRange.nextMonthDay {
+    background: linear-gradient(83.21deg, #3245ff 0%, #bc52ee 100%);
+    border-color: transparent;
+  }
+  
+  .primary-button {
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(83.21deg, #3245ff 0%, #bc52ee 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    margin-top: 1rem;
+  }
+  
+  .primary-button:hover {
+    opacity: 0.9;
+  }
+  
+  .primary-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+  
+  @media screen and (max-width: 640px) {
+    .booking-item {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+    
+    .item-details {
+      width: 100%;
+      justify-content: space-between;
+    }
+    
+    .remove-item {
+      align-self: flex-end;
+    }
+    
+    .form-dates {
+      grid-template-columns: 1fr;
+    }
+    
+    .form-group input,
+    .form-group textarea {
+      font-size: 16px; /* Prevent zoom on input focus on mobile */
+    }
+  }
+</style>

@@ -1,0 +1,172 @@
+---
+// BookingInfo.astro - A reusable component for displaying the current booking status
+---
+
+<div id="booking-summary">
+  <div id="booking-info">
+    <div id="booking-counter">0</div>
+    <span class="booking-label">Items in your booking</span>
+  </div>
+  <a href="/booking" class="view-booking-btn">View Booking</a>
+  <div id="booking-feedback">Item added to booking!</div>
+</div>
+
+<style>
+  #booking-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    position: relative;
+    gap: 1rem; /* Add space between elements */
+  }
+
+  #booking-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 500;
+    min-width: 150px;
+    position: relative;
+  }
+
+  #booking-counter {
+    background: linear-gradient(83.21deg, #3245ff 0%, #bc52ee 100%);
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 32px;
+    font-size: 1rem;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    /* Always maintain space but show empty initially */
+    visibility: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  
+  /* Animation when items are added */
+  #booking-counter.pulse {
+    animation: pulse 0.5s ease;
+  }
+  
+  .booking-label {
+    font-size: 1rem;
+    font-weight: 500;
+    color: #4b5563;
+    letter-spacing: -0.01em;
+    visibility: hidden; /* Hide initially, but preserve space */
+  }
+
+  .view-booking-btn {
+    padding: 0.5rem 1rem;
+    background: linear-gradient(83.21deg, #3245ff 0%, #bc52ee 100%);
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: opacity 0.2s;
+    /* Always maintain space but hide initially */
+    visibility: hidden;
+    display: block;
+  }
+  
+  .view-booking-btn:hover {
+    opacity: 0.9;
+  }
+
+  #booking-feedback {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #10b981;
+    color: white;
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    animation: fadeIn 0.3s;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); }
+    100% { transform: scale(1); }
+  }
+</style>
+
+<script>
+  // Script to initialize the booking counter on every page that uses this component
+  document.addEventListener('DOMContentLoaded', async () => {
+    try {
+      // Dynamically import the API functions
+      const { initBookingSystem } = await import('../utils/api.js');
+      
+      // Initialize booking from localStorage
+      const booking = initBookingSystem();
+      
+      // Update the counter
+      updateBookingCounter(booking);
+    } catch (err) {
+      console.error('Error initializing booking info:', err);
+    }
+  });
+  
+  // Export the function for use in other components
+  window.updateBookingCounter = function(booking) {
+    const counter = document.getElementById('booking-counter');
+    const bookingLabel = document.querySelector('.booking-label');
+    const viewBookingBtn = document.querySelector('.view-booking-btn');
+    const currentCount = parseInt(counter.textContent) || 0;
+    
+    if (counter) {
+      // Update the count
+      counter.textContent = booking.totalCount;
+      
+      // Add pulse animation if an item was added
+      if (booking.totalCount > currentCount) {
+        // Remove and re-add the class to trigger animation again
+        counter.classList.remove('pulse');
+        void counter.offsetWidth; // Force reflow to restart animation
+        counter.classList.add('pulse');
+      }
+      
+      if (booking.totalCount > 0) {
+        // Show elements by changing visibility (maintains layout)
+        counter.style.visibility = 'visible';
+        if (viewBookingBtn) viewBookingBtn.style.visibility = 'visible';
+        if (bookingLabel) bookingLabel.style.visibility = 'visible';
+      } else {
+        // Hide but preserve space
+        counter.style.visibility = 'hidden';
+        if (viewBookingBtn) viewBookingBtn.style.visibility = 'hidden';
+        if (bookingLabel) bookingLabel.style.visibility = 'hidden';
+      }
+    }
+  };
+  
+  // Function to show feedback when an item is added
+  window.showBookingFeedback = function(message) {
+    const feedback = document.getElementById('booking-feedback');
+    if (feedback) {
+      feedback.textContent = message || 'Item added to your booking!';
+      feedback.style.display = 'block';
+      
+      setTimeout(() => {
+        feedback.style.display = 'none';
+      }, 2000);
+    }
+  };
+</script>

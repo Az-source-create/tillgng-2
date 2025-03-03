@@ -1,0 +1,506 @@
+---
+import { fetchProducts } from '../utils/api.js';
+import BookingInfo from './BookingInfo.astro';
+
+// Get current page from URL query parameter
+const url = new URL(Astro.request.url);
+const currentPage = parseInt(url.searchParams.get('page') || '1');
+
+// Fetch products with pagination
+const result = await fetchProducts({ page: currentPage });
+const { products, pageInfo } = result;
+
+// Process images server-side for each product
+const processedProducts = products.map(product => {
+  // Initialize with product data
+  const processed = { ...product };
+  
+  // Add a processed image URL for each product (default placeholder)
+  processed.imageUrl = '/placeholder-image.png'; 
+  
+  // Look specifically for signedUrl in Produktbilder[0].thumbnails.card_cover
+  if (product.Produktbilder && 
+      Array.isArray(product.Produktbilder) && 
+      product.Produktbilder.length > 0 && 
+      product.Produktbilder[0].thumbnails &&
+      product.Produktbilder[0].thumbnails.card_cover && 
+      product.Produktbilder[0].thumbnails.card_cover.signedUrl) {
+    
+    processed.imageUrl = product.Produktbilder[0].thumbnails.card_cover.signedUrl;
+  }
+  // Fallback to top-level signedUrl
+  else if (product.signedUrl) {
+    processed.imageUrl = product.signedUrl;
+  }
+  // Fallback to top-level card_cover.signedUrl
+  else if (product.card_cover && product.card_cover.signedUrl) {
+    processed.imageUrl = product.card_cover.signedUrl;
+  }
+  // Fallback: placeholder
+  else {
+    processed.imageUrl = 'https://placehold.co/600x400?text=' + encodeURIComponent(product.Produkt);
+  }
+  
+  return processed;
+});
+
+// Helper function to generate page URLs
+function getPageUrl(page) {
+  const newUrl = new URL(Astro.request.url);
+  newUrl.searchParams.set('page', page.toString());
+  return newUrl.pathname + newUrl.search;
+}
+---
+
+<script>
+  // This script runs in the browser
+  
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Dynamically import to avoid client/server mismatch
+    const { initBookingSystem, saveBooking } = await import('../utils/api.js');
+    // Parse the product data
+    const dataElement = document.getElementById('api-data');
+    if (dataElement && dataElement.dataset.products) {
+      try {
+        const products = JSON.parse(dataElement.dataset.products);
+        
+        // Initialize booking state
+        let booking = initBookingSystem();
+        // Use the global function from BookingInfo if available
+        if (window.updateBookingCounter) {
+          window.updateBookingCounter(booking);
+        }
+        
+        // Set up event listeners for all "Add to Booking" buttons
+        document.querySelectorAll('.add-to-booking').forEach(button => {
+          button.addEventListener('click', (e) => {
+            const productId = e.target.dataset.productId;
+            const productName = e.target.dataset.productName;
+            
+            // Find the product in the booking or add it
+            const existingItem = booking.items.find(item => item.id === productId);
+            
+            if (existingItem) {
+              existingItem.quantity += 1;
+            } else {
+              booking.items.push({
+                id: productId,
+                name: productName,
+                quantity: 1
+              });
+            }
+            
+            booking.totalCount += 1;
+            
+            // Save booking to localStorage
+            saveBooking(booking);
+            
+            // Update UI using the global functions from BookingInfo
+            if (window.updateBookingCounter) {
+              window.updateBookingCounter(booking);
+            }
+            
+            // Show feedback using the global function from BookingInfo
+            if (window.showBookingFeedback) {
+              window.showBookingFeedback(`${productName} added to your booking!`);
+            }
+          });
+        });
+      } catch (err) {
+        console.error('Error parsing product data:', err);
+      }
+    }
+  });
+</script>
+
+<!-- Hidden element to store the products data for client-side booking operations -->
+<div id="api-data" 
+  data-products={JSON.stringify(processedProducts)}
+  style="display: none;"></div>
+
+<div class="product-grid-container">
+  <h1>Our Products</h1>
+  <BookingInfo />
+  
+  {processedProducts.length === 0 ? (
+    <div class="loading-message">
+      <p>Loading products...</p>
+    </div>
+  ) : (
+    <div class="product-grid">
+      {processedProducts.map((product) => (
+        <div class="product-card box">
+          <div class="product-image-container">
+            <img 
+              src={product.imageUrl} 
+              alt={`Image of ${product.Produkt}`}
+              class="product-image"
+              loading="lazy"
+              onerror="this.onerror=null; this.src='https://via.placeholder.com/300x200?text=No+Image'; console.log('Image failed to load:', this.src);"
+            />
+          </div>
+          <h2>{product.Produkt}</h2>
+          <button 
+            class="add-to-booking"
+            data-product-id={product.Id || product.id}
+            data-product-name={product.Produkt}>
+            Add to Booking
+          </button>
+        </div>
+      ))}
+    </div>
+  )}
+  
+  {/* Pagination controls */}
+  {pageInfo.totalPages > 1 && (
+    <div class="pagination">
+      <div class="pagination-info">
+        Page {pageInfo.currentPage} of {pageInfo.totalPages} 
+        ({pageInfo.totalItems} products)
+      </div>
+      
+      <div class="pagination-controls">
+        {/* Previous page button */}
+        {pageInfo.hasPreviousPage ? (
+          <a href={getPageUrl(pageInfo.currentPage - 1)} class="pagination-button">
+            &laquo; Previous
+          </a>
+        ) : (
+          <span class="pagination-button disabled">&laquo; Previous</span>
+        )}
+        
+        {/* Page numbers */}
+        <div class="pagination-pages">
+          {/* First page */}
+          {pageInfo.currentPage > 2 && (
+            <a href={getPageUrl(1)} class="pagination-page">1</a>
+          )}
+          
+          {/* Ellipsis if needed */}
+          {pageInfo.currentPage > 3 && (
+            <span class="pagination-ellipsis">...</span>
+          )}
+          
+          {/* Page before current */}
+          {pageInfo.currentPage > 1 && (
+            <a href={getPageUrl(pageInfo.currentPage - 1)} class="pagination-page">
+              {pageInfo.currentPage - 1}
+            </a>
+          )}
+          
+          {/* Current page */}
+          <span class="pagination-page current">{pageInfo.currentPage}</span>
+          
+          {/* Page after current */}
+          {pageInfo.currentPage < pageInfo.totalPages && (
+            <a href={getPageUrl(pageInfo.currentPage + 1)} class="pagination-page">
+              {pageInfo.currentPage + 1}
+            </a>
+          )}
+          
+          {/* Ellipsis if needed */}
+          {pageInfo.currentPage < pageInfo.totalPages - 2 && (
+            <span class="pagination-ellipsis">...</span>
+          )}
+          
+          {/* Last page */}
+          {pageInfo.currentPage < pageInfo.totalPages - 1 && (
+            <a href={getPageUrl(pageInfo.totalPages)} class="pagination-page">
+              {pageInfo.totalPages}
+            </a>
+          )}
+        </div>
+        
+        {/* Next page button */}
+        {pageInfo.hasNextPage ? (
+          <a href={getPageUrl(pageInfo.currentPage + 1)} class="pagination-button">
+            Next &raquo;
+          </a>
+        ) : (
+          <span class="pagination-button disabled">Next &raquo;</span>
+        )}
+      </div>
+    </div>
+  )}
+</div>
+
+<style>
+  .product-grid-container {
+    padding: 2rem 1rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-size: 2rem;
+    margin-bottom: 1.5rem;
+    background: linear-gradient(83.21deg, #3245ff 0%, #bc52ee 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .product-card {
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s, box-shadow 0.2s;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .product-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  }
+
+  .product-image-container {
+    width: 100%;
+    height: 180px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+    border-radius: 8px;
+    background-color: #f3f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .product-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+  }
+  
+  .product-card:hover .product-image {
+    transform: scale(1.05);
+  }
+  
+  .product-debug {
+    background: #f0f9ff;
+    padding: 8px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    overflow-wrap: break-word;
+    word-break: break-all;
+    max-height: 150px;
+    overflow-y: auto;
+  }
+  
+  .product-card h2 {
+    margin: 0 0 1rem 0;
+    font-size: 1.2rem;
+    color: #111827;
+  }
+
+  .loading-message {
+    text-align: center;
+    padding: 2rem;
+    color: #4b5563;
+    font-size: 1.2rem;
+  }
+
+  /* Add to booking button */
+  .add-to-booking {
+    margin-top: auto;
+    padding: 0.6rem 1rem;
+    background: linear-gradient(83.21deg, #3245ff 0%, #bc52ee 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+
+  .add-to-booking:hover {
+    opacity: 0.9;
+  }
+
+  .add-to-booking:active {
+    transform: scale(0.98);
+  }
+
+  /* Booking summary bar */
+  #booking-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    position: relative;
+  }
+
+  #booking-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 500;
+    min-width: 150px;
+    position: relative;
+  }
+
+  #booking-counter {
+    background: linear-gradient(83.21deg, #3245ff 0%, #bc52ee 100%);
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 32px;
+    font-size: 1rem;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    /* Always maintain space but show empty initially */
+    visibility: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  
+  /* Animation when items are added */
+  #booking-counter.pulse {
+    animation: pulse 0.5s ease;
+  }
+  
+  .booking-label {
+    font-size: 1rem;
+    font-weight: 500;
+    color: #4b5563;
+    letter-spacing: -0.01em;
+    visibility: hidden; /* Hide initially, but preserve space */
+  }
+
+  .view-booking-btn {
+    padding: 0.5rem 1rem;
+    background: linear-gradient(83.21deg, #3245ff 0%, #bc52ee 100%);
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: opacity 0.2s;
+    /* Always maintain space but hide initially */
+    visibility: hidden;
+    display: block;
+  }
+  
+  .view-booking-btn:hover {
+    opacity: 0.9;
+  }
+
+  #booking-feedback {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #10b981;
+    color: white;
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    animation: fadeIn 0.3s;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); }
+    100% { transform: scale(1); }
+  }
+
+  /* Pagination styles */
+  .pagination {
+    margin-top: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+  
+  .pagination-info {
+    font-size: 0.9rem;
+    color: #6b7280;
+  }
+  
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+  
+  .pagination-pages {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  
+  .pagination-button, .pagination-page {
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    text-decoration: none;
+    color: #111827;
+    background: #f3f4f6;
+    font-weight: 500;
+    transition: background-color 0.2s, color 0.2s;
+  }
+  
+  .pagination-page {
+    min-width: 2.5rem;
+    text-align: center;
+    padding: 0.5rem;
+  }
+  
+  .pagination-button:hover, .pagination-page:hover {
+    background: #e5e7eb;
+  }
+  
+  .pagination-page.current {
+    background: linear-gradient(83.21deg, #3245ff 0%, #bc52ee 100%);
+    color: white;
+  }
+  
+  .pagination-button.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #f3f4f6;
+  }
+  
+  .pagination-ellipsis {
+    padding: 0 0.25rem;
+    color: #6b7280;
+  }
+
+  /* Responsive adjustments */
+  @media screen and (max-width: 768px) {
+    .product-grid {
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 1rem;
+    }
+    
+    .product-card {
+      padding: 1rem;
+    }
+    
+    .pagination-controls {
+      flex-wrap: wrap;
+    }
+  }
+</style>
