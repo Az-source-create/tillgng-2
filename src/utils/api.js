@@ -3,18 +3,32 @@
  */
 
 /**
- * Fetches products from NocoDB with pagination
+ * Fetches products from NocoDB with pagination and search capability
  * @param {Object} options - Options for fetching products
- * @param {number} [options.limit=35] - Number of products to fetch per page
+ * @param {number} [options.limit=30] - Number of products to fetch per page
  * @param {number} [options.page=1] - Page number to fetch
+ * @param {string} [options.search=''] - Search term to filter products
  * @returns {Promise<Object>} - Object with products array and pagination metadata
  */
-export async function fetchProducts({ limit = 35, page = 1 } = {}) {
+export async function fetchProducts({ limit = 25, page = 1, search = '' } = {}) {
   // Calculate offset from page number
   const offset = (page - 1) * limit;
   
-  // Add fields to sort by if needed
-  const url = `${import.meta.env.PRODUCTS_TABLE_URL}?offset=${offset}&limit=${limit}`;
+  // Build URL with search parameter if provided
+  let url = `${import.meta.env.PRODUCTS_TABLE_URL}?offset=${offset}&limit=${limit}`;
+  
+  // Add search parameter to filter by product name
+  if (search && search.trim() !== '') {
+    // Let's add some debug logging to see what's happening
+    console.log("Search term:", search);
+    
+    // Use the field name that contains product names - using wildcards before and after
+    // Try basic pattern matching with wildcards
+    url += `&where=(Produkt,like,%25${search}%25)`;
+    
+    // Log the final URL for debugging
+    console.log("API URL:", url);
+  }
   
   try {
     const response = await fetch(url, {
@@ -40,12 +54,22 @@ export async function fetchProducts({ limit = 35, page = 1 } = {}) {
         totalItems: data.pageInfo?.totalRows || 0,
         totalPages: Math.ceil((data.pageInfo?.totalRows || 0) / limit),
         hasNextPage: Boolean(data.pageInfo?.isLastPage === false),
-        hasPreviousPage: page > 1
+        hasPreviousPage: page > 1,
+        searchTerm: search
       }
     };
   } catch (error) {
     console.error('Error fetching products:', error);
-    return { products: [], pageInfo: { currentPage: page, pageSize: limit, totalItems: 0, totalPages: 0 } };
+    return { 
+      products: [], 
+      pageInfo: { 
+        currentPage: page, 
+        pageSize: limit, 
+        totalItems: 0, 
+        totalPages: 0,
+        searchTerm: search 
+      } 
+    };
   }
 }
 

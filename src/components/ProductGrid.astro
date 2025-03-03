@@ -1,13 +1,14 @@
 ---
 import { fetchProducts } from '../utils/api.js';
-import BookingInfo from './BookingInfo.astro';
+import Cart from './Cart.astro';
 
-// Get current page from URL query parameter
+// Get current page and search parameters from URL
 const url = new URL(Astro.request.url);
 const currentPage = parseInt(url.searchParams.get('page') || '1');
+const searchTerm = url.searchParams.get('search') || '';
 
-// Fetch products with pagination
-const result = await fetchProducts({ page: currentPage });
+// Fetch products with pagination and search
+const result = await fetchProducts({ page: currentPage, search: searchTerm });
 const { products, pageInfo } = result;
 
 // Process images server-side for each product
@@ -48,6 +49,10 @@ const processedProducts = products.map(product => {
 function getPageUrl(page) {
   const newUrl = new URL(Astro.request.url);
   newUrl.searchParams.set('page', page.toString());
+  // Preserve search parameter if it exists
+  if (searchTerm) {
+    newUrl.searchParams.set('search', searchTerm);
+  }
   return newUrl.pathname + newUrl.search;
 }
 ---
@@ -66,7 +71,7 @@ function getPageUrl(page) {
         
         // Initialize booking state
         let booking = initBookingSystem();
-        // Use the global function from BookingInfo if available
+        // Use the global function from Cart if available
         if (window.updateBookingCounter) {
           window.updateBookingCounter(booking);
         }
@@ -95,12 +100,12 @@ function getPageUrl(page) {
             // Save booking to localStorage
             saveBooking(booking);
             
-            // Update UI using the global functions from BookingInfo
+            // Update UI using the global functions from Cart
             if (window.updateBookingCounter) {
               window.updateBookingCounter(booking);
             }
             
-            // Show feedback using the global function from BookingInfo
+            // Show feedback using the global function from Cart
             if (window.showBookingFeedback) {
               window.showBookingFeedback(`${productName} added to your booking!`);
             }
@@ -120,11 +125,37 @@ function getPageUrl(page) {
 
 <div class="product-grid-container">
   <h1>Our Products</h1>
-  <BookingInfo />
+  
+  <div class="sticky-header">
+    <Cart />
+    
+    <form class="search-container" action="/" method="get">
+      <input
+        type="text"
+        id="product-search"
+        name="search"
+        placeholder="Search products..."
+        class="search-input"
+        value={searchTerm}
+      />
+      <button type="submit" class="search-button">Search</button>
+    </form>
+    
+    {searchTerm && (
+      <div class="search-results-header">
+        <p>
+          {products.length === 0 
+            ? `No products found for "${searchTerm}"` 
+            : `Found ${pageInfo.totalItems} product${pageInfo.totalItems !== 1 ? 's' : ''} for "${searchTerm}"`}
+        </p>
+        <a href="/" class="clear-search-button">Clear Search</a>
+      </div>
+    )}
+  </div>
   
   {processedProducts.length === 0 ? (
     <div class="loading-message">
-      <p>Loading products...</p>
+      <p>{searchTerm ? `No products found matching "${searchTerm}"` : 'Loading products...'}</p>
     </div>
   ) : (
     <div class="product-grid">
@@ -230,7 +261,88 @@ function getPageUrl(page) {
     max-width: 1200px;
     margin: 0 auto;
   }
-
+  
+  .sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background-color: white;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .search-container {
+    width: 100%;
+    display: flex;
+    gap: 0.5rem;
+  }
+  
+  .search-input {
+    flex-grow: 1;
+    padding: 0.75rem 1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 1rem;
+    background-color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+  }
+  
+  .search-input:focus {
+    outline: none;
+    border-color: #3245ff;
+    box-shadow: 0 2px 8px rgba(50, 69, 255, 0.2);
+  }
+  
+  .search-button {
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(83.21deg, #3245ff 0%, #bc52ee 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+  
+  .search-button:hover {
+    opacity: 0.9;
+  }
+  
+  .search-button:active {
+    transform: scale(0.98);
+  }
+  
+  .search-results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding: 0.75rem 1rem;
+    background-color: #f9fafb;
+    border-radius: 8px;
+  }
+  
+  .search-results-header p {
+    margin: 0;
+    color: #4b5563;
+  }
+  
+  .clear-search-button {
+    padding: 0.5rem 1rem;
+    background-color: #f3f4f6;
+    color: #4b5563;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.875rem;
+    transition: background-color 0.2s;
+  }
+  
+  .clear-search-button:hover {
+    background-color: #e5e7eb;
+  }
+  
   h1 {
     font-size: 2rem;
     margin-bottom: 1.5rem;
@@ -238,6 +350,23 @@ function getPageUrl(page) {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+  
+  .product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .product-card {
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s, box-shadow 0.2s;
+    display: flex;
+    flex-direction: column;
   }
 
   .product-grid {
