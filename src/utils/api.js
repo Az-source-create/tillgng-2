@@ -98,6 +98,21 @@ export async function submitBooking(bookingData) {
       throw new Error('No items in booking');
     }
     
+    // Validate date format before submitting
+    if (!bookingData.pickupDateTimeFormatted || !bookingData.returnDateTimeFormatted) {
+      console.error('Missing date/time fields:', {
+        pickup: bookingData.pickupDateTimeFormatted,
+        return: bookingData.returnDateTimeFormatted
+      });
+      throw new Error('Please select both pickup and return dates');
+    }
+    
+    // Log date formats for debugging
+    console.log('Client-side date formats being submitted:', {
+      pickup: bookingData.pickupDateTimeFormatted,
+      return: bookingData.returnDateTimeFormatted
+    });
+    
     // Call our own API endpoint instead of NocoDB directly
     // This keeps sensitive API tokens on the server side
     const response = await fetch('/api/submit-booking', {
@@ -111,11 +126,15 @@ export async function submitBooking(bookingData) {
     // Get response as text first
     const responseText = await response.text();
     
+    // Log raw response for debugging
+    console.log('Raw API response:', responseText);
+    
     // Parse JSON response if possible
     let data;
     try {
       data = JSON.parse(responseText);
     } catch (e) {
+      console.error('Error parsing JSON response:', e);
       // If not valid JSON, create a basic response object
       data = {
         success: response.ok,
@@ -126,6 +145,9 @@ export async function submitBooking(bookingData) {
     // Handle error response
     if (!response.ok) {
       const errorMessage = data.error || data.message || 'Unknown error';
+      if (data.timestamp) {
+        console.error('Server error timestamp:', data.timestamp);
+      }
       throw new Error(`Booking submission failed: ${errorMessage}`);
     }
     
