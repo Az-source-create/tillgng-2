@@ -158,15 +158,23 @@
   };
   
   // Function to show feedback when an item is added
-  window.showBookingFeedback = function(message) {
+  window.showBookingFeedback = function(message, duration = 2000) {
     const feedback = document.getElementById('booking-feedback');
     if (feedback) {
       feedback.textContent = message || 'Item added to your booking!';
       feedback.style.display = 'block';
       
+      // If message is longer, adjust styles to fit
+      if (message && message.length > 80) {
+        feedback.style.maxWidth = '350px';
+      } else {
+        feedback.style.maxWidth = '';  // Reset to default
+      }
+      
       setTimeout(() => {
         feedback.style.display = 'none';
-      }, 2000);
+        feedback.style.maxWidth = '';  // Reset after hiding
+      }, duration);
     }
   };
 </script>

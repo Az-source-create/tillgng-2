@@ -13,36 +13,75 @@ const { products, pageInfo } = result;
 
 // Process images server-side for each product
 const processedProducts = products.map(product => {
-  // Initialize with product data
-  const processed = { ...product };
-  
-  // Add a processed image URL for each product (default placeholder)
-  processed.imageUrl = '/placeholder-image.png'; 
-  
-  // Look specifically for signedUrl in Produktbilder[0].thumbnails.card_cover
-  if (product.Produktbilder && 
-      Array.isArray(product.Produktbilder) && 
-      product.Produktbilder.length > 0 && 
-      product.Produktbilder[0].thumbnails &&
-      product.Produktbilder[0].thumbnails.card_cover && 
-      product.Produktbilder[0].thumbnails.card_cover.signedUrl) {
+  try {
+    // Initialize with product data
+    const processed = { ...product };
     
-    processed.imageUrl = product.Produktbilder[0].thumbnails.card_cover.signedUrl;
+    // Add a processed image URL for each product (default placeholder)
+    processed.imageUrl = '/placeholder-image.png'; 
+    
+    // Look specifically for signedUrl in Produktbilder[0].thumbnails.card_cover
+    if (product.Produktbilder && 
+        Array.isArray(product.Produktbilder) && 
+        product.Produktbilder.length > 0 && 
+        product.Produktbilder[0].thumbnails &&
+        product.Produktbilder[0].thumbnails.card_cover && 
+        product.Produktbilder[0].thumbnails.card_cover.signedUrl) {
+      
+      processed.imageUrl = product.Produktbilder[0].thumbnails.card_cover.signedUrl;
+    }
+    // Fallback to top-level signedUrl
+    else if (product.signedUrl) {
+      processed.imageUrl = product.signedUrl;
+    }
+    // Fallback to top-level card_cover.signedUrl
+    else if (product.card_cover && product.card_cover.signedUrl) {
+      processed.imageUrl = product.card_cover.signedUrl;
+    }
+    // Fallback: placeholder
+    else {
+      processed.imageUrl = 'https://placehold.co/600x400?text=' + encodeURIComponent(product.Produkt || 'Product');
+    }
+    
+    // Ensure product has a name
+    if (!processed.Produkt) {
+      processed.Produkt = 'Unnamed Product';
+    }
+    
+    // Ensure product has an ID
+    if (!processed.Id && !processed.id) {
+      processed.id = 'unknown-' + Math.random().toString(36).substring(2, 10);
+    }
+    
+    // If no availability information, provide a default
+    if (!processed.availability) {
+      const totalQty = parseInt(product['Totalantal'] || product['TotalAntal'] || 0);
+      const availableQty = parseInt(product['Antal tillgängliga'] || product['Antal tillgangliga'] || 0);
+      
+      processed.availability = {
+        total: totalQty || 0,
+        booked: 0,
+        available: availableQty || 0,
+        nextAvailable: null
+      };
+    }
+    
+    return processed;
+  } catch (error) {
+    console.error('Error processing product:', error);
+    // Return a minimal valid product to avoid UI issues
+    return {
+      id: 'error-' + Math.random().toString(36).substring(2, 10),
+      Produkt: 'Error Loading Product',
+      imageUrl: 'https://placehold.co/600x400?text=Error+Loading',
+      availability: {
+        total: 0,
+        booked: 0,
+        available: 0,
+        nextAvailable: null
+      }
+    };
   }
-  // Fallback to top-level signedUrl
-  else if (product.signedUrl) {
-    processed.imageUrl = product.signedUrl;
-  }
-  // Fallback to top-level card_cover.signedUrl
-  else if (product.card_cover && product.card_cover.signedUrl) {
-    processed.imageUrl = product.card_cover.signedUrl;
-  }
-  // Fallback: placeholder
-  else {
-    processed.imageUrl = 'https://placehold.co/600x400?text=' + encodeURIComponent(product.Produkt);
-  }
-  
-  return processed;
 });
 
 // Helper function to generate page URLs
@@ -81,6 +120,38 @@ function getPageUrl(page) {
           button.addEventListener('click', (e) => {
             const productId = e.target.dataset.productId;
             const productName = e.target.dataset.productName;
+            const nextAvailable = e.target.dataset.nextAvailable;
+            
+            // Check if product is currently booked but available in future
+            const isCurrentlyBooked = e.target.closest('.product-card').classList.contains('product-unavailable');
+            const returningQuantity = parseInt(e.target.dataset.returningQuantity) || 0;
+            
+            if (isCurrentlyBooked && nextAvailable) {
+              // Show a message about future availability when adding a booked item
+              const qtyText = returningQuantity === 1 ? '1 item' : `${returningQuantity} items`;
+              if (window.showBookingFeedback) {
+                window.showBookingFeedback(
+                  `${productName} added! Note: ${qtyText} returning on ${nextAvailable}. ` +
+                  `Please select a pickup date after this time.`, 
+                  8000 // Show for longer (8 seconds)
+                );
+              }
+            } else if (isCurrentlyBooked) {
+              // This shouldn't happen as the button should be disabled, but just in case
+              if (window.showBookingFeedback) {
+                window.showBookingFeedback(
+                  `Sorry, ${productName} is currently unavailable with no known return date.`,
+                  4000
+                );
+              }
+              // Don't proceed with adding the item
+              return;
+            } else {
+              // Standard feedback for available items
+              if (window.showBookingFeedback) {
+                window.showBookingFeedback(`${productName} added to your booking!`);
+              }
+            }
             
             // Find the product in the booking or add it
             const existingItem = booking.items.find(item => item.id === productId);
@@ -91,7 +162,9 @@ function getPageUrl(page) {
               booking.items.push({
                 id: productId,
                 name: productName,
-                quantity: 1
+                quantity: 1,
+                nextAvailable: nextAvailable || null,
+                returningQuantity: returningQuantity || 0
               });
             }
             
@@ -103,11 +176,6 @@ function getPageUrl(page) {
             // Update UI using the global functions from Cart
             if (window.updateBookingCounter) {
               window.updateBookingCounter(booking);
-            }
-            
-            // Show feedback using the global function from Cart
-            if (window.showBookingFeedback) {
-              window.showBookingFeedback(`${productName} added to your booking!`);
             }
           });
         });
@@ -160,8 +228,24 @@ function getPageUrl(page) {
   ) : (
     <div class="product-grid">
       {processedProducts.map((product) => (
-        <div class="product-card box">
+        <div class={`product-card box ${product.availability && product.availability.available <= 0 ? 'product-unavailable' : ''}`}>
           <div class="product-image-container">
+            {product.availability && product.availability.available <= 0 && (
+              <div class="unavailable-overlay">
+                <div class="unavailable-message">
+                  <span class="unavailable-text">Booked</span>
+                  {product.availability.nextAvailable ? (
+                    <span class="next-available-text">
+                      {product.availability.returningQuantity} {product.availability.returningQuantity === 1 ? 'item' : 'items'} returning on: {product.availability.nextAvailable}
+                    </span>
+                  ) : (
+                    <span class="next-available-text">
+                      Currently unavailable
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
             <img 
               src={product.imageUrl} 
               alt={`Image of ${product.Produkt}`}
@@ -171,11 +255,47 @@ function getPageUrl(page) {
             />
           </div>
           <h2>{product.Produkt}</h2>
+          <div class="product-availability">
+            {product.availability && (
+              product.availability.available > 0 ? (
+                <div class="availability-container">
+                  <span class="availability-indicator available">
+                    Available: {product.availability.available} of {product.availability.total}
+                  </span>
+                  {product.availability.nextAvailable && (
+                    <span class="next-return-indicator">
+                      Next return: {product.availability.returningQuantity} {product.availability.returningQuantity === 1 ? 'item' : 'items'} on {product.availability.nextAvailable}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div class="availability-container">
+                  <span class="availability-indicator unavailable">
+                    Currently Booked
+                  </span>
+                  {product.availability.nextAvailable ? (
+                    <span class="next-return-indicator">
+                      Returns: {product.availability.returningQuantity} {product.availability.returningQuantity === 1 ? 'item' : 'items'} on {product.availability.nextAvailable}
+                    </span>
+                  ) : (
+                    <span class="next-return-indicator unavailable">
+                      Return date unavailable
+                    </span>
+                  )}
+                </div>
+              )
+            )}
+          </div>
           <button 
             class="add-to-booking"
             data-product-id={product.Id || product.id}
-            data-product-name={product.Produkt}>
-            Add to Booking
+            data-product-name={product.Produkt}
+            data-next-available={product.availability && product.availability.nextAvailable ? product.availability.nextAvailable : ''}
+            data-returning-quantity={product.availability && product.availability.returningQuantity ? product.availability.returningQuantity : 0}
+            disabled={product.availability && product.availability.available <= 0 && !product.availability.nextAvailable}>
+            {product.availability && product.availability.available <= 0 
+              ? (product.availability.nextAvailable ? 'Book When Available' : 'Currently Unavailable')
+              : 'Add to Booking'}
           </button>
         </div>
       ))}
@@ -412,6 +532,117 @@ function getPageUrl(page) {
   
   .product-card:hover .product-image {
     transform: scale(1.05);
+  }
+  
+  /* Product availability styling */
+  .product-unavailable .product-image-container {
+    position: relative;
+    opacity: 0.8;
+  }
+  
+  .unavailable-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    border-radius: 8px;
+  }
+  
+  .unavailable-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    text-align: center;
+  }
+  
+  .unavailable-text {
+    color: white;
+    font-weight: 700;
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    text-shadow: 0px 1px 3px rgba(0, 0, 0, 0.8);
+  }
+  
+  .next-available-text {
+    color: white;
+    font-size: 0.9rem;
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+  
+  .product-availability {
+    margin: 0.5rem 0;
+    display: flex;
+    justify-content: center;
+  }
+  
+  .availability-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    width: 100%;
+  }
+  
+  .availability-indicator {
+    font-size: 0.9rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    display: inline-block;
+  }
+  
+  .availability-indicator.available {
+    background-color: rgba(16, 185, 129, 0.1);
+    color: rgb(16, 185, 129);
+  }
+  
+  .availability-indicator.unavailable {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: rgb(239, 68, 68);
+  }
+  
+  .next-return-indicator {
+    font-size: 0.8rem;
+    color: #6b7280;
+    padding: 0.15rem 0.4rem;
+    background-color: #f3f4f6;
+    border-radius: 4px;
+  }
+  
+  .product-unavailable .add-to-booking:not([disabled]) {
+    background: #f7f0ff;
+    color: #6c2bd9;
+    border: 1px solid #8b5cf6;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .product-unavailable .add-to-booking:not([disabled]):hover {
+    background: #f3e8ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(139, 92, 246, 0.2);
+  }
+  
+  .product-unavailable .add-to-booking[disabled] {
+    background: #e5e7eb;
+    color: #6b7280;
+    border: 1px solid #d1d5db;
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+  
+  .next-return-indicator.unavailable {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: rgb(239, 68, 68);
   }
   
   .product-debug {
