@@ -13,6 +13,7 @@ export default defineConfig({
   adapter: node({
     mode: "standalone" // Use standalone mode for most hosting providers
   }),
+  // No integrations needed
   server: {
     host: true // Expose to all network interfaces
   },

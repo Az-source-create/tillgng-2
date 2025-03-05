@@ -15,6 +15,8 @@ export async function fetchAllBookings() {
     // Get all bookings with limit
     const bookingsUrl = `${baseUrl}?limit=50`;
     
+    console.log("Fetching bookings from:", bookingsUrl);
+    
     const response = await fetch(bookingsUrl, {
       method: 'GET',
       headers: {
@@ -24,7 +26,11 @@ export async function fetchAllBookings() {
     });
 
     if (!response.ok) {
-      throw new Error(`NocoDB API error: ${response.status} ${response.statusText}`);
+      if (response.status === 429) {
+        throw new Error("Rate limit exceeded. Too many requests to the booking API.");
+      } else {
+        throw new Error(`NocoDB API error: ${response.status} ${response.statusText}`);
+      }
     }
 
     // Get response as text first
@@ -92,21 +98,65 @@ export async function fetchProducts({ limit = 25, page = 1, search = '' } = {}) 
   }
   
   try {
+    // First try to get the API token from env
+    const apiToken = import.meta.env.NOCODB_API_TOKEN;
+    
+    // Debug logs
+    console.log('Fetching products with URL:', url);
+    console.log('API token exists:', !!apiToken);
+    
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'xc-token': import.meta.env.NOCODB_API_TOKEN,
+        'xc-token': apiToken,
         'Content-Type': 'application/json'
       }
     });
 
     if (!response.ok) {
-      throw new Error(`NocoDB API error: ${response.status} ${response.statusText}`);
+      const errorMessage = `NocoDB API error: ${response.status} ${response.statusText}`;
+      console.error(errorMessage);
+      
+      // For rate limit errors, provide a more helpful message
+      const userMessage = response.status === 429 
+        ? "Too many requests to the database. Please try again in a few minutes."
+        : errorMessage;
+      
+      // Return error info to display to user
+      return {
+        products: [],
+        pageInfo: {
+          currentPage: page,
+          totalPages: 1,
+          totalItems: 0,
+          hasNextPage: false,
+          hasPreviousPage: false
+        },
+        error: userMessage
+      };
     }
 
-    const data = await response.json();
+    const responseText = await response.text();
+    console.log('Response received, length:', responseText.length);
     
-    // Make processedProducts using Promise.all to handle async operations
+    let data;
+    try {
+      data = responseText ? JSON.parse(responseText) : { list: [] };
+    } catch (err) {
+      console.error('Error parsing JSON:', err);
+      return {
+        products: [],
+        pageInfo: {
+          currentPage: page,
+          totalPages: 1,
+          totalItems: 0,
+          hasNextPage: false,
+          hasPreviousPage: false
+        },
+        error: `Error parsing response: ${err.message}`
+      };
+    }
+    
     const processedProducts = await Promise.all((data.list || []).map(async product => {
       try {
         const processed = { ...product };
@@ -135,17 +185,26 @@ export async function fetchProducts({ limit = 25, page = 1, search = '' } = {}) 
           const productId = product.Id || product.id;
           
           if (productId) {
-            // Fetch all bookings
-            const bookingsDetails = await fetchAllBookings();
-            
-            // If we got no bookings from the API but the product is unavailable,
-            // we'll show it as booked without return date information
-            // We don't add mock data - just show as booked without return info
-            
-            // Filter the bookings to only include those that match this product
-            const matchingBookings = bookingsDetails.filter(booking => {
+            try {
+              // Fetch all bookings
+              const bookingsDetails = await fetchAllBookings();
+              
+              // If we got no bookings from the API but the product is unavailable,
+              // we'll show it as booked without return date information
+              // Add debugging for what this product ID is
+              console.log(`Processing product: ${product.Produkt} (ID: ${productId})`);
+              
+              // Filter the bookings to only include those that match this product
+              const matchingBookings = bookingsDetails.filter(booking => {
               // The product field might be an object with an id field, or just an id
               if (booking.Product) {
+                // Log what we're comparing
+                const bookingProductId = typeof booking.Product === 'object' 
+                  ? (booking.Product.id || booking.Product.Id) 
+                  : booking.Product;
+                  
+                console.log(`Checking booking with Product ID: ${JSON.stringify(bookingProductId)}`);
+                
                 if (typeof booking.Product === 'object') {
                   return booking.Product.id === productId || 
                          booking.Product.Id === productId || 
@@ -157,6 +216,9 @@ export async function fetchProducts({ limit = 25, page = 1, search = '' } = {}) 
               return false;
             });
             
+            // Log how many bookings we found for this product
+            console.log(`Found ${matchingBookings.length} bookings for product ID ${productId}`);
+            
             // Process each booking to extract return date info
             matchingBookings.forEach((booking, index) => {
               try {
@@ -167,6 +229,9 @@ export async function fetchProducts({ limit = 25, page = 1, search = '' } = {}) 
                   booking['returnDateTime'] || 
                   booking['Return datetime'] || 
                   booking['return_date'];
+                
+                // Log the return date field for debugging
+                console.log('Return date field for booking:', returnDateField);
                 
                 // Get quantity field
                 const quantityField = booking['Quantity'] || booking['quantity'] || booking['Antal'] || 1;
@@ -181,8 +246,10 @@ export async function fetchProducts({ limit = 25, page = 1, search = '' } = {}) 
                     returnDate = new Date(returnDateField.value);
                   }
                   
-                  // If return date is in the future, this is an active booking
-                  if (returnDate && returnDate > now) {
+                  // Log the parsed return date for debugging
+                  console.log('Parsed return date:', returnDate);
+                  
+                  if (returnDate) {
                     // Use the exact time from the database without timezone adjustment
                     const returnDateAdjusted = returnDate; // No adjustment needed
                     
@@ -196,8 +263,9 @@ export async function fetchProducts({ limit = 25, page = 1, search = '' } = {}) 
                       timeZone: 'Europe/Stockholm'
                     });
                     
-                    // Log the date adjustment
-                    console.log(`Date adjustment: ${returnDate.toISOString()} → ${returnDateAdjusted.toISOString()} = ${formattedDate}`);
+                    // Log the date adjustment and whether this is a past date
+                    const isPastDate = returnDate <= new Date();
+                    console.log(`Date adjustment: ${returnDate.toISOString()} → ${returnDateAdjusted.toISOString()} = ${formattedDate} (Past date: ${isPastDate})`);
                     
                     activeBookings.push({
                       returnDate: returnDateAdjusted,
@@ -210,38 +278,90 @@ export async function fetchProducts({ limit = 25, page = 1, search = '' } = {}) 
                 console.error(`Error processing booking for product ${product.Produkt}:`, error);
               }
             });
+            } catch (error) {
+              // If fetching bookings fails, add error info to the product
+              console.error(`Error fetching bookings for product ${product.Produkt}:`, error);
+              processed.availability = {
+                ...processed.availability,
+                error: error.message || "Failed to load booking information",
+                hasBookingError: true
+              };
+            }
           }
         }
       // We don't need this code anymore since we fetch from booking table directly now
       
-      // We're now using the matched bookings from the API
-      // Sort active bookings by return date (earliest first)
-      activeBookings.sort((a, b) => a.returnDate - b.returnDate);
-      
-      // Calculate availability based on fetched bookings
-      const bookedQty = activeBookings.reduce((total, booking) => total + (booking.quantity || 1), 0);
-      const currentlyAvailable = availableQty;
-      
-      // Get the earliest return date and quantity
+      // Process active bookings to identify future and overdue returns
       let upcomingReturnQty = 0;
       let nextReturnDate = null;
+      let nextReturnTimestamp = 0; // Store timestamp for earliest return date
+      let overdueReturnQty = 0;
+      let overdueReturnDate = null;
+      let maxDaysOverdue = 0;
+      let hasOverdueReturns = false;
       
-      if (activeBookings.length > 0) {
-        // Get the earliest return date
-        nextReturnDate = activeBookings[0].returnDateFormatted;
+      // Check if we have active bookings to process
+      if (Array.isArray(activeBookings) && activeBookings.length > 0) {
+        const currentDate = new Date();
+        const futureReturns = [];
+        const overdueReturns = [];
         
-        // Get quantity returning on that earliest date
-        upcomingReturnQty = activeBookings[0].quantity || 1;
+        // Separate into future and overdue returns
+        activeBookings.forEach(booking => {
+          if (booking && booking.returnDate) {
+            if (booking.returnDate <= currentDate) {
+              // This is an overdue return
+              const daysOverdue = Math.floor((currentDate - booking.returnDate) / (1000 * 60 * 60 * 24));
+              overdueReturns.push({
+                ...booking,
+                daysOverdue
+              });
+            } else {
+              // This is a future return
+              futureReturns.push(booking);
+            }
+          }
+        });
         
+        // Sort future returns by date (earliest first)
+        if (futureReturns.length > 0) {
+          futureReturns.sort((a, b) => a.returnDate - b.returnDate);
+          nextReturnDate = futureReturns[0].returnDateFormatted;
+          nextReturnTimestamp = futureReturns[0].returnDate.getTime(); // Store timestamp for future use
+          upcomingReturnQty = futureReturns[0].quantity || 1;
         }
+        
+        // Process overdue returns
+        if (overdueReturns.length > 0) {
+          hasOverdueReturns = true;
+          // Sort overdue returns by date (most overdue first)
+          overdueReturns.sort((a, b) => a.returnDate - b.returnDate);
+          overdueReturnQty = overdueReturns.reduce((total, b) => total + (b.quantity || 1), 0);
+          overdueReturnDate = overdueReturns[0].returnDateFormatted;
+          maxDaysOverdue = overdueReturns[0].daysOverdue;
+        }
+      }
+      
+      // Calculate availability based on product data
+      const currentlyAvailable = availableQty;
+      
+      // Calculate booked quantity from our processing or from product data
+      const bookedQty = Array.isArray(activeBookings) 
+        ? activeBookings.reduce((total, booking) => total + (booking.quantity || 1), 0) 
+        : (totalQty - currentlyAvailable);
       
       // Add this information to processed product with detailed logging
       processed.availability = {
         total: totalQty,                     // Total inventory (from Totalantal field)
         booked: bookedQty,                   // Number of active bookings
         available: currentlyAvailable,       // Currently available items
-        nextAvailable: nextReturnDate,       // Next return date
-        returningQuantity: upcomingReturnQty // Quantity returning on that date
+        nextAvailable: nextReturnDate,       // Next return date (formatted)
+        nextReturnTimestamp: nextReturnTimestamp, // Timestamp for the next return date
+        returningQuantity: upcomingReturnQty, // Quantity returning on that date
+        hasOverdueReturns: hasOverdueReturns, // Flag for overdue returns
+        overdueQuantity: overdueReturnQty,   // Total quantity that is overdue
+        overdueDate: overdueReturnDate,      // Date of the most overdue item
+        daysOverdue: maxDaysOverdue          // How many days the most overdue item is late
       };
       
       
@@ -275,7 +395,7 @@ export async function fetchProducts({ limit = 25, page = 1, search = '' } = {}) 
       }
     };
   } catch (error) {
-    console.error('Error fetching products:', error); // Keep error logging
+    console.error('Error fetching products:', error);
     return { 
       products: [], 
       pageInfo: { 
@@ -283,8 +403,11 @@ export async function fetchProducts({ limit = 25, page = 1, search = '' } = {}) 
         pageSize: limit, 
         totalItems: 0, 
         totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: page > 1,
         searchTerm: search 
-      } 
+      },
+      error: error.message || "Failed to load products. Please try again."
     };
   }
 }

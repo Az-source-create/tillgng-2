@@ -1,0 +1,333 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+// Get booking data from URL parameters
+const params = Astro.url.searchParams;
+const bookingData = {
+  name: params.get('name') || '',
+  email: params.get('email') || '',
+  phone: params.get('phone') || '',
+  pickupDateTime: params.get('pickup') || '',
+  returnDateTime: params.get('return') || '',
+  items: []
+};
+
+// Try to decode items from the URL parameter
+try {
+  const itemsParam = params.get('items');
+  if (itemsParam) {
+    bookingData.items = JSON.parse(decodeURIComponent(itemsParam));
+  }
+} catch (error) {
+  console.error('Error parsing items:', error);
+}
+
+// Format date for display
+function formatDate(dateString) {
+  if (!dateString) return '';
+  
+  try {
+    // Check if the string is already in DD-MM-YYYY HH:mm format
+    const ddmmFormat = /^\d{1,2}-\d{1,2}-\d{4}\s\d{1,2}:\d{2}$/;
+    
+    if (ddmmFormat.test(dateString)) {
+      // Already in the right format, just parse it to create a nicer display
+      const [datePart, timePart] = dateString.split(' ');
+      const [day, month, year] = datePart.split('-');
+      const [hours, minutes] = timePart.split(':');
+      
+      // Create a nicely formatted string
+      // Get day of week
+      const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      const weekday = date.toLocaleDateString('en-GB', { weekday: 'long' });
+      
+      // Format as "Monday 01 January 2023 at 16:45"
+      // Use the original hours and minutes from the string
+      const monthName = date.toLocaleDateString('en-GB', { month: 'long' });
+      
+      // Log debug info
+      console.log(`Formatting ${dateString} as day-of-week + formatted date`);
+      
+      return `${weekday} ${day} ${monthName} ${year} at ${hours}:${minutes}`;
+    } else {
+      // Try to parse as date if not in expected format
+      const date = new Date(dateString);
+      
+      // Format pattern: DD Month YYYY at HH:MM
+      const options = { 
+        weekday: 'long',
+        day: '2-digit', 
+        month: 'long', 
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false, // Use 24-hour format
+        timeZone: 'Europe/Stockholm' // Use Stockholm timezone explicitly
+      };
+      
+      // Convert to local date string with the specified timezone
+      const formatted = date.toLocaleString('en-GB', options);
+      
+      // Log to debug
+      console.log(`Original date: ${dateString}, Parsed and formatted date: ${formatted}`);
+      
+      // Replace commas for better formatting
+      return formatted.replace(',', '').replace(',', ' at');
+    }
+  } catch (e) {
+    console.error("Error formatting date:", e);
+    return dateString;
+  }
+}
+---
+
+<Layout>
+  <div class="confirmation-page">
+    <div class="header-with-home">
+      <a href="/" class="home-icon" aria-label="Go to home page">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+          <polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+      </a>
+      <h1>Booking Confirmed!</h1>
+    </div>
+    
+    <div class="confirmation-card">
+      <div class="confirmation-icon">✅</div>
+      <p class="success-message">
+        Thank you for your booking. Your request has been received and confirmed.
+      </p>
+      
+      <div class="confirmation-details">
+        <h2>Booking Details</h2>
+        
+        <div class="detail-section">
+          <h3>Personal Information</h3>
+          <div class="detail-item">
+            <span class="detail-label">Name:</span>
+            <span class="detail-value">{bookingData.name}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Email:</span>
+            <span class="detail-value">{bookingData.email}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Phone:</span>
+            <span class="detail-value">{bookingData.phone}</span>
+          </div>
+        </div>
+        
+        <div class="detail-section">
+          <h3>Scheduling</h3>
+          <div class="detail-item datetime">
+            <span class="detail-label">Pickup:</span>
+            <span class="detail-value">{formatDate(bookingData.pickupDateTime)}</span>
+          </div>
+          <div class="detail-item datetime">
+            <span class="detail-label">Return:</span>
+            <span class="detail-value">{formatDate(bookingData.returnDateTime)}</span>
+          </div>
+        </div>
+        
+        <div class="detail-section">
+          <h3>Items Booked</h3>
+          {bookingData.items.length > 0 ? (
+            <ul class="items-list">
+              {bookingData.items.map(item => (
+                <li class="item">
+                  <span class="item-name">{item.name}</span>
+                  <span class="item-quantity">x{item.quantity}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p class="no-items">No items in booking.</p>
+          )}
+        </div>
+      </div>
+      
+      <div class="actions">
+        <a href="/" class="primary-button">Back to Home</a>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<style>
+  .confirmation-page {
+    padding: 2rem 1rem;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  
+  .header-with-home {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 2rem;
+  }
+  
+  .home-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.9);
+    color: #3245ff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+  }
+  
+  .home-icon:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    background: white;
+  }
+  
+  h1 {
+    font-size: 2rem;
+    margin: 0;
+    background: linear-gradient(83.21deg, #3245ff 0%, #bc52ee 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .confirmation-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    padding: 2rem;
+    text-align: center;
+  }
+  
+  .confirmation-icon {
+    font-size: 4rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .success-message {
+    font-size: 1.25rem;
+    color: #374151;
+    margin-bottom: 2rem;
+  }
+  
+  .confirmation-details {
+    text-align: left;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 1.5rem;
+    margin-top: 1.5rem;
+  }
+  
+  h2 {
+    font-size: 1.5rem;
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    color: #111827;
+  }
+  
+  .detail-section {
+    margin-bottom: 2rem;
+    background: #f9fafb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    border-left: 4px solid #4f46e5;
+  }
+  
+  h3 {
+    margin-top: 0;
+    font-size: 1.2rem;
+    color: #4f46e5;
+    margin-bottom: 1rem;
+  }
+  
+  .detail-item {
+    display: flex;
+    margin-bottom: 0.75rem;
+    font-size: 1.1rem;
+  }
+  
+  .detail-label {
+    font-weight: 600;
+    min-width: 100px;
+    color: #4b5563;
+  }
+  
+  .detail-value {
+    flex: 1;
+    color: #111827;
+  }
+  
+  .datetime .detail-value {
+    color: #4f46e5;
+    font-weight: 500;
+  }
+  
+  .items-list {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+  }
+  
+  .item-name {
+    font-weight: 500;
+    color: #111827;
+  }
+  
+  .item-quantity {
+    font-weight: 600;
+    color: #4f46e5;
+    background: #eef2ff;
+    padding: 0.25rem 0.5rem;
+    border-radius: 9999px;
+  }
+  
+  .no-items {
+    color: #6b7280;
+    font-style: italic;
+  }
+  
+  .actions {
+    margin-top: 2rem;
+  }
+  
+  .primary-button {
+    display: inline-block;
+    background: linear-gradient(83.21deg, #3245ff 0%, #bc52ee 100%);
+    color: white;
+    font-weight: 500;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+  
+  .primary-button:hover {
+    opacity: 0.9;
+    transform: translateY(-2px);
+  }
+  
+  @media (max-width: 640px) {
+    .detail-item {
+      flex-direction: column;
+      margin-bottom: 1rem;
+    }
+    
+    .detail-label {
+      margin-bottom: 0.25rem;
+    }
+  }
+</style>

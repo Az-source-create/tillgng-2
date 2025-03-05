@@ -138,56 +138,91 @@ export const POST: APIRoute = async ({ request }) => {
       console.error('Error validating dates:', error);
     }
     
-    // Parse pickup and return dates to format them correctly for NocoDB
-    let pickupDateISO, returnDateISO;
+    // The issue appears to be a timezone difference between client and NocoDB
+    // NocoDB might be interpreting our time as UTC and then displaying it in a different timezone
+    
+    // First, log the exact values from the picker
+    console.log('Original datetime values from picker:', {
+      pickup: bookingData.pickupDateTimeFormatted,
+      return: bookingData.returnDateTimeFormatted
+    });
+    
+    // Parse the dates to check for timezone issues
     try {
-      const pickupParts = bookingData.pickupDateTimeFormatted.split(/[-\s:]/);
-      const returnParts = bookingData.returnDateTimeFormatted.split(/[-\s:]/);
+      // Parse the dates from DD-MM-YYYY HH:mm format
+      const parseDateTime = (dateTimeStr) => {
+        // Split into components: [day, month, year, hour, minute]
+        const parts = dateTimeStr.split(/[-\s:]/);
+        if (parts.length >= 5) {
+          const day = parseInt(parts[0]);
+          const month = parseInt(parts[1]) - 1; // JS months are 0-indexed
+          const year = parseInt(parts[2]);
+          const hour = parseInt(parts[3]);
+          const minute = parseInt(parts[4]);
+          
+          // Create date in local timezone 
+          return new Date(year, month, day, hour, minute);
+        }
+        return null;
+      };
       
-      if (pickupParts.length >= 5 && returnParts.length >= 5) {
-        // Parse pickup date (DD-MM-YYYY HH:mm)
-        const pickupDay = parseInt(pickupParts[0]);
-        const pickupMonth = parseInt(pickupParts[1]) - 1; // Months are 0-indexed in JS
-        const pickupYear = parseInt(pickupParts[2]);
-        const pickupHour = parseInt(pickupParts[3]);
-        const pickupMinute = parseInt(pickupParts[4]);
-        
-        // Parse return date (DD-MM-YYYY HH:mm)
-        const returnDay = parseInt(returnParts[0]);
-        const returnMonth = parseInt(returnParts[1]) - 1; // Months are 0-indexed in JS
-        const returnYear = parseInt(returnParts[2]);
-        const returnHour = parseInt(returnParts[3]);
-        const returnMinute = parseInt(returnParts[4]);
-        
-        // Create Date objects
-        const pickupDate = new Date(pickupYear, pickupMonth, pickupDay, pickupHour, pickupMinute);
-        const returnDate = new Date(returnYear, returnMonth, returnDay, returnHour, returnMinute);
-        
-        // Format as ISO strings (YYYY-MM-DD HH:mm:ss)
-        pickupDateISO = pickupDate.toISOString().replace('T', ' ').split('.')[0];
-        returnDateISO = returnDate.toISOString().replace('T', ' ').split('.')[0];
-        
-        console.log('Converted dates to ISO format:', {
-          original: {
-            pickup: bookingData.pickupDateTimeFormatted,
-            return: bookingData.returnDateTimeFormatted
-          },
-          iso: {
-            pickup: pickupDateISO,
-            return: returnDateISO
-          }
+      const pickupDate = parseDateTime(bookingData.pickupDateTimeFormatted);
+      const returnDate = parseDateTime(bookingData.returnDateTimeFormatted);
+      
+      if (pickupDate && returnDate) {
+        console.log('Timezone diagnostic info:', {
+          serverTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          utcOffset: new Date().getTimezoneOffset()/-60,
+          pickupLocal: pickupDate.toString(),
+          pickupISO: pickupDate.toISOString(),
+          pickupUTC: new Date(pickupDate.toUTCString()).toISOString(),
+          returnLocal: returnDate.toString(),
+          returnISO: returnDate.toISOString(),
+          returnUTC: new Date(returnDate.toUTCString()).toISOString()
         });
-      } else {
-        // If parsing fails, use original strings
-        console.warn('Could not parse date parts correctly, using original strings');
-        pickupDateISO = bookingData.pickupDateTimeFormatted;
-        returnDateISO = bookingData.returnDateTimeFormatted;
       }
     } catch (error) {
-      console.error('Error formatting dates for NocoDB:', error);
-      pickupDateISO = bookingData.pickupDateTimeFormatted;
-      returnDateISO = bookingData.returnDateTimeFormatted;
+      console.error('Error in timezone diagnostic:', error);
     }
+    
+    // Final approach: Format with SQL datetime format and timezone indicator
+    // The format "YYYY-MM-DD HH:MM:SS+00:00" explicitly indicates timezone
+    const formatForNocoDB = (dateTimeStr) => {
+      // Parse from DD-MM-YYYY HH:mm format
+      const parts = dateTimeStr.split(/[-\s:]/);
+      if (parts.length >= 5) {
+        const day = parseInt(parts[0]);
+        const month = parseInt(parts[1]) - 1; // JS months are 0-indexed
+        const year = parseInt(parts[2]);
+        const hour = parseInt(parts[3]);
+        const minute = parseInt(parts[4]);
+        
+        // Create a date object
+        const date = new Date(year, month, day, hour, minute);
+        
+        // Format in SQL datetime format with explicit UTC+0 timezone
+        // This forces NocoDB to interpret the time exactly as provided
+        const pad = num => String(num).padStart(2, '0');
+        
+        // Add -1 hour compensation if needed based on your testing
+        const adjustedHour = hour - 1;
+        
+        return `${year}-${pad(month + 1)}-${pad(day)} ${pad(adjustedHour)}:${pad(minute)}:00+00:00`;
+      }
+      return dateTimeStr;
+    };
+    
+    const pickupDateISO = formatForNocoDB(bookingData.pickupDateTimeFormatted);
+    const returnDateISO = formatForNocoDB(bookingData.returnDateTimeFormatted);
+    
+    console.log('Sending dates in SQL datetime format with -1 hour adjustment:', {
+      pickup: pickupDateISO,
+      return: returnDateISO,
+      original: {
+        pickup: bookingData.pickupDateTimeFormatted,
+        return: bookingData.returnDateTimeFormatted
+      }
+    });
     
     // Create an array of booking records - one for each product
     const bookingRecords = bookingData.bookingItems.map((item: { id: any; quantity: any; }) => ({
@@ -195,8 +230,8 @@ export const POST: APIRoute = async ({ request }) => {
       Email: bookingData.email,
       Phone: bookingData.phone,
       Address: bookingData.address,
-      "Pickup date-time": pickupDateISO,
-      "Return date-time": returnDateISO,
+      "Pickup date-time": pickupDateISO, // Using exact value from datetime picker
+      "Return date-time": returnDateISO, // Using exact value from datetime picker
       Notes: bookingData.notes || '',
       // For relational fields in NocoDB, we need to use the linked record ID
       Product: item.id, // Use the product ID for the relational field, not the name
@@ -225,10 +260,13 @@ export const POST: APIRoute = async ({ request }) => {
     console.log('Submitting to NocoDB URL:', url);
     console.log('With payloads:', JSON.stringify(bookingRecords, null, 2));
     
-    // Log the date formats explicitly for debugging
-    console.log('Date formats being submitted:', {
-      pickup: bookingData.pickupDateTimeFormatted,
-      return: bookingData.returnDateTimeFormatted
+    // Log the date formats being submitted to NocoDB
+    console.log('Date formats being submitted to NocoDB:', {
+      pickup: pickupDateISO,
+      return: returnDateISO,
+      format: 'YYYY-MM-DD HH:mm:ss (SQL datetime format with +1 hour)',
+      originalPickup: bookingData.pickupDateTimeFormatted,
+      originalReturn: bookingData.returnDateTimeFormatted
     });
     
     // Submit each booking record to NocoDB

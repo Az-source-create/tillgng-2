@@ -1,9 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import DateTimePicker from '../components/DateTimePicker.astro';
 ---
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
 <Layout>
   <div class="booking-page">
@@ -42,15 +41,26 @@ import Layout from '../layouts/Layout.astro';
         <form id="booking-form">
           <div class="form-dates">
             <div class="form-group">
-              <label for="pickupDateTime">Pickup Date and Time</label>
-              <input type="text" id="pickupDateTime" name="pickupDateTime" class="flatpickr" placeholder="Select date & time" data-input required>
-              <small class="datetime-format-hint">Click to select date and time (DD-MM-YYYY HH:mm format). Maximum rental period is 7 days.</small>
+              <DateTimePicker 
+                id="pickupDateTime" 
+                name="pickupDateTime"
+                label="Pickup Date and Time"
+                required={true}
+                min={new Date().toISOString().slice(0, 16)} // Current date-time as minimum
+              />
+              <small class="datetime-format-hint">Is your selected pickup date and time.</small>
             </div>
             
             <div class="form-group">
-              <label for="returnDateTime">Return Date and Time</label>
-              <input type="text" id="returnDateTime" name="returnDateTime" class="flatpickr" placeholder="Select date & time" data-input required>
-              <small class="datetime-format-hint">Click to select date and time (DD-MM-YYYY HH:mm format). Must be within 7 days of pickup.</small>
+              <DateTimePicker 
+                id="returnDateTime" 
+                name="returnDateTime"
+                label="Return Date and Time"
+                required={true}
+                initialDate={new Date(new Date().getTime() + 4 * 60 * 60 * 1000)}
+                min={new Date().toISOString().slice(0, 16)} // Current date-time as minimum
+              />
+              <small class="datetime-format-hint">Is your selected return date and time. Maximum rental period is 7 days.</small>
             </div>
           </div>
           
@@ -200,136 +210,8 @@ import Layout from '../layouts/Layout.astro';
         saveBooking(booking);
       });
       
-      // Set up Flatpickr datetime pickers with customized format
-      
-      // Ensure the locale has Monday as the first day of the week but in English
-      const customLocale = {
-        weekdays: {
-          shorthand: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
-          longhand: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-        },
-        months: {
-          shorthand: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-          longhand: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-        },
-        firstDayOfWeek: 1,         // This is the key setting: 1 = Monday (instead of 0 = Sunday)
-        ordinal: function(nth) {
-          const s = nth % 100;
-          if (s > 3 && s < 21) return "th";
-          switch (s % 10) {
-            case 1: return "st";
-            case 2: return "nd";
-            case 3: return "rd";
-            default: return "th";
-          }
-        },
-        rangeSeparator: " to ",
-        weekAbbreviation: "Wk",
-        scrollTitle: "Scroll to increment",
-        toggleTitle: "Click to toggle",
-        time_24hr: true           // Use 24-hour time format
-      };
-      
-      // Register our custom locale
-      flatpickr.localize(customLocale);
-      
-      // Calculate default time (30 minutes from now)
-      const now = new Date();
-      const defaultTime = new Date(now);
-      defaultTime.setMinutes(now.getMinutes() + 30);
-      
-      // Round to nearest 30 minutes
-      const minutes = defaultTime.getMinutes();
-      defaultTime.setMinutes(minutes - (minutes % 30));
-      
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      // Initialize Flatpickr for pickup datetime
-      const pickupFlatpickr = flatpickr("#pickupDateTime", {
-        enableTime: true,          // Enable time selection
-        dateFormat: "d-m-Y H:i",   // DD-MM-YYYY HH:mm format (in flatpickr, 'i' means minutes)
-        time_24hr: true,           // Use 24 hour time
-        minuteIncrement: 30,       // 30 minute increments
-        allowInput: true,          // Allow manual input
-        weekNumbers: true,         // Show week numbers
-        position: "auto",          // Auto-position the calendar
-        minDate: "today",          // Prevent selecting dates in the past
-        defaultDate: defaultTime,  // Set default time to 30 minutes from now
-        // For today, ensure past times are disabled
-        onOpen: function(selectedDates, dateStr, instance) {
-          // If today is selected, disable past times
-          const now = new Date();
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          
-          if (instance.currentYear === now.getFullYear() && 
-              instance.currentMonth === now.getMonth() && 
-              instance.selectedDates.length > 0 && 
-              instance.selectedDates[0].setHours(0,0,0,0) === today.getTime()) {
-              
-            // Set minimum time to current time (rounded to next 30 min)
-            const currentHour = now.getHours();
-            const currentMinute = now.getMinutes();
-            let minMinutes = currentMinute >= 30 ? 0 : 30;
-            let minHour = currentMinute >= 30 ? currentHour + 1 : currentHour;
-            
-            instance.set("minTime", `${minHour}:${minMinutes === 0 ? '00' : minMinutes}`);
-          } else {
-            // Reset min time for other days
-            instance.set("minTime", null);
-          }
-        },
-        onChange: function(selectedDates, dateStr) {
-          // Update the min date for the return datetime picker
-          if (selectedDates[0]) {
-            // Make sure return date is at least same as pickup date
-            const minReturnDate = new Date(selectedDates[0]);
-            returnFlatpickr.set("minDate", minReturnDate);
-            
-            // If there's already a return date set, maintain the same time gap
-            const currentReturnDate = returnFlatpickr.selectedDates[0];
-            if (currentReturnDate) {
-              // Calculate the existing gap in milliseconds
-              const previousPickupTime = window.previousPickupDate ? window.previousPickupDate.getTime() : null;
-              
-              if (previousPickupTime) {
-                const previousGap = currentReturnDate.getTime() - previousPickupTime;
-                
-                // Apply the same gap to the new pickup date
-                const newReturnDate = new Date(selectedDates[0].getTime() + previousGap);
-                returnFlatpickr.setDate(newReturnDate);
-              }
-            }
-            // If return date is before pickup or not set, set it to 4 hours later by default
-            else if (!currentReturnDate || currentReturnDate < minReturnDate) {
-              const newReturnDate = new Date(minReturnDate);
-              newReturnDate.setHours(minReturnDate.getHours() + 4); // 4 hours later by default
-              returnFlatpickr.setDate(newReturnDate);
-            }
-            
-            // Store the selected date for future gap calculations
-            window.previousPickupDate = new Date(selectedDates[0]);
-          }
-        }
-      });
-      
-      // Initialize Flatpickr for return datetime
-      // Calculate default return time (4 hours after pickup default time)
-      const defaultReturnTime = new Date(defaultTime);
-      defaultReturnTime.setHours(defaultTime.getHours() + 4);
-      
-      const returnFlatpickr = flatpickr("#returnDateTime", {
-        enableTime: true,          // Enable time selection
-        dateFormat: "d-m-Y H:i",   // DD-MM-YYYY HH:mm format (in flatpickr, 'i' means minutes)
-        time_24hr: true,           // Use 24 hour time
-        minuteIncrement: 30,       // 30 minute increments
-        allowInput: true,          // Allow manual input
-        weekNumbers: true,         // Show week numbers
-        position: "auto",          // Auto-position the calendar
-        minDate: "today",          // Prevent selecting dates in the past
-        defaultDate: defaultReturnTime  // Set default to 4 hours after pickup
-      });
+      // Date/time wheels are now initialized by the DateTimeWheel component
+      // with sensible default values
       
       // Set up form submission
       document.getElementById('booking-form').addEventListener('submit', async (e) => {
@@ -347,55 +229,85 @@ import Layout from '../layouts/Layout.astro';
             throw new Error('Your booking is empty. Please add items to your booking before submitting.');
           }
           
-          // Validate dates are selected
-          if (!pickupFlatpickr.selectedDates[0]) {
+          // Get date time values directly from the datetime-local inputs (in YYYY-MM-DDT hh:mm format)
+          const pickupDateTimeValue = document.getElementById('pickupDateTime').value;
+          const returnDateTimeValue = document.getElementById('returnDateTime').value;
+          
+          // Validate all fields are filled
+          if (!pickupDateTimeValue) {
             throw new Error('Please select a pickup date and time.');
           }
           
-          if (!returnFlatpickr.selectedDates[0]) {
+          if (!returnDateTimeValue) {
             throw new Error('Please select a return date and time.');
           }
           
+          // Parse the YYYY-MM-DDThh:mm format and set time zone to Stockholm
+          const parseDateTimeString = (dateTimeStr) => {
+            // Create a date object that correctly preserves the local time as entered by the user
+            const [datePart, timePart] = dateTimeStr.split('T');
+            const [year, month, day] = datePart.split('-').map(Number);
+            const [hours, minutes] = timePart.split(':').map(Number);
+            
+            // Create date as specified by user without timezone conversion
+            const date = new Date();
+            date.setFullYear(year);
+            date.setMonth(month - 1); // Months are 0-indexed
+            date.setDate(day);
+            date.setHours(hours);
+            date.setMinutes(minutes);
+            date.setSeconds(0);
+            date.setMilliseconds(0);
+            
+            console.log(`Parsed ${dateTimeStr} as local time: ${date.toString()}`);
+            
+            return date;
+          };
+          
+          // Create Date objects from form values
+          const pickupDateTime = parseDateTimeString(pickupDateTimeValue);
+          const returnDateTime = parseDateTimeString(returnDateTimeValue);
+          
           // Check that pickup date and time are not in the past
           const now = new Date();
-          if (pickupFlatpickr.selectedDates[0] < now) {
+          if (pickupDateTime < now) {
             throw new Error('Pickup date and time cannot be in the past.');
           }
           
           // Check that return date is after pickup date
-          if (returnFlatpickr.selectedDates[0] <= pickupFlatpickr.selectedDates[0]) {
-            throw new Error('Return date must be after pickup date.');
+          if (returnDateTime <= pickupDateTime) {
+            throw new Error('Return date and time must be after pickup date and time.');
           }
           
           // Check that rental period is not more than 7 days (1 week)
-          const pickupDate = pickupFlatpickr.selectedDates[0];
-          const returnDate = returnFlatpickr.selectedDates[0];
-          const rentalDuration = Math.round((returnDate - pickupDate) / (1000 * 60 * 60 * 24)); // duration in days
+          const rentalDuration = Math.round((returnDateTime - pickupDateTime) / (1000 * 60 * 60 * 24)); // duration in days
           
           if (rentalDuration > 7) {
             throw new Error(`Your rental period is ${rentalDuration} days. You can only borrow items for a maximum of 7 days (1 week) at a time.`);
           }
           
-          // Format dates for display in logs
-          const pickupFormatted = document.getElementById('pickupDateTime').value;
-          const returnFormatted = document.getElementById('returnDateTime').value;
+          // Format dates for display in logs (DD-MM-YYYY HH:mm)
+          const formatDateTime = (date) => {
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            
+            const formatted = `${day}-${month}-${year} ${hours}:${minutes}`;
+            console.log(`Formatting date ${date.toString()} as: ${formatted}`);
+            return formatted;
+          };
           
-          // Validate date format (should be DD-MM-YYYY HH:mm)
-          const dateFormatRegex = /^\d{1,2}-\d{1,2}-\d{4}\s\d{1,2}:\d{2}$/;
-          if (!dateFormatRegex.test(pickupFormatted) || !dateFormatRegex.test(returnFormatted)) {
-            console.error('Date format validation failed:', { 
-              pickup: pickupFormatted, 
-              return: returnFormatted 
-            });
-            throw new Error('Date format appears to be incorrect. Please use the date picker to select valid dates in DD-MM-YYYY HH:mm format.');
-          }
+          const pickupFormatted = formatDateTime(pickupDateTime);
+          const returnFormatted = formatDateTime(returnDateTime);
           
           // Collect form data
           const formData = {
             // Scheduling information
-            pickupDateTime: pickupFlatpickr.selectedDates[0],
+            pickupDateTime,
             pickupDateTimeFormatted: pickupFormatted,
-            returnDateTime: returnFlatpickr.selectedDates[0],
+            returnDateTime,
             returnDateTimeFormatted: returnFormatted,
             
             // Personal information
@@ -412,10 +324,10 @@ import Layout from '../layouts/Layout.astro';
           // For development/testing, log the data in detail
           console.log('Submitting booking data:', {
             ...formData,
-            pickupRaw: pickupFlatpickr.selectedDates[0].toString(),
-            returnRaw: returnFlatpickr.selectedDates[0].toString(),
-            pickupTimestamp: pickupFlatpickr.selectedDates[0].getTime(),
-            returnTimestamp: returnFlatpickr.selectedDates[0].getTime()
+            pickupRaw: pickupDateTime.toString(),
+            returnRaw: returnDateTime.toString(),
+            pickupTimestamp: pickupDateTime.getTime(),
+            returnTimestamp: returnDateTime.getTime()
           });
           
           // Submit booking to NocoDB
@@ -423,16 +335,26 @@ import Layout from '../layouts/Layout.astro';
           const result = await submitBooking(formData);
           console.log('Received result from submitBooking:', result);
           
-          // Show success message
-          alert('Booking submitted successfully!');
+          // Prepare data for the confirmation page
+          // Instead of using ISO string which can cause timezone shifts,
+          // pass the exact formatted string that was used for the API
+          const pickupForConfirmation = pickupFormatted;
+          const returnForConfirmation = returnFormatted;
+          
+          // Encode booking items for URL (keeping only name and quantity)
+          const itemsForURL = booking.items.map(item => ({
+            name: item.name,
+            quantity: item.quantity
+          }));
+          const encodedItems = encodeURIComponent(JSON.stringify(itemsForURL));
           
           // Clear the booking
           booking.items = [];
           booking.totalCount = 0;
           saveBooking(booking);
           
-          // Redirect to home page with success parameter
-          window.location.href = '/?booking=success';
+          // Redirect to confirmation page with booking details
+          window.location.href = `/booking-confirmation?name=${encodeURIComponent(formData.fullName)}&email=${encodeURIComponent(formData.email)}&phone=${encodeURIComponent(formData.phone)}&pickup=${encodeURIComponent(pickupForConfirmation)}&return=${encodeURIComponent(returnForConfirmation)}&items=${encodedItems}`;
           
         } catch (error) {
           // Show detailed error message for debugging
@@ -452,23 +374,10 @@ import Layout from '../layouts/Layout.astro';
           }
           
           // Add more detailed error info for debugging
-          if (pickupFlatpickr && pickupFlatpickr.selectedDates && pickupFlatpickr.selectedDates[0]) {
-            console.error('Pickup date details:', {
-              formatted: document.getElementById('pickupDateTime').value,
-              jsDate: pickupFlatpickr.selectedDates[0].toString(),
-              month: pickupFlatpickr.selectedDates[0].getMonth() + 1,
-              day: pickupFlatpickr.selectedDates[0].getDate()
-            });
-          }
-          
-          if (returnFlatpickr && returnFlatpickr.selectedDates && returnFlatpickr.selectedDates[0]) {
-            console.error('Return date details:', {
-              formatted: document.getElementById('returnDateTime').value,
-              jsDate: returnFlatpickr.selectedDates[0].toString(),
-              month: returnFlatpickr.selectedDates[0].getMonth() + 1,
-              day: returnFlatpickr.selectedDates[0].getDate()
-            });
-          }
+          console.error('Form values:', {
+            pickupDateTime: document.getElementById('pickupDateTime')?.value || 'not set',
+            returnDateTime: document.getElementById('returnDateTime')?.value || 'not set',
+          });
           
           // Create a more user-friendly message
           alert(`Error submitting booking: ${userMessage}\n\nPlease try again or contact support if the problem persists.`);
@@ -722,9 +631,9 @@ import Layout from '../layouts/Layout.astro';
   }
   
   .form-dates {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
     margin-bottom: 1.5rem;
   }
   
@@ -763,40 +672,26 @@ import Layout from '../layouts/Layout.astro';
     margin-top: 0.25rem;
   }
   
-  /* Flatpickr customization */
-  .flatpickr-input {
-    cursor: pointer;
-    background-color: #f9fafb;
+  /* 24-hour time format styles */
+  input[type="time"] {
+    font-family: monospace; /* Use monospace font for better alignment */
   }
   
-  /* Override some flatpickr styles to match our design */
-  .flatpickr-calendar {
-    font-family: inherit;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    border-radius: 12px;
-    border: 1px solid rgba(229, 231, 235, 0.8);
+  /* Ensure consistent appearance across browsers */
+  input[type="time"]::-webkit-datetime-edit {
+    display: inline-block;
   }
   
-  .flatpickr-day.selected,
-  .flatpickr-day.startRange,
-  .flatpickr-day.endRange,
-  .flatpickr-day.selected.inRange,
-  .flatpickr-day.startRange.inRange,
-  .flatpickr-day.endRange.inRange,
-  .flatpickr-day.selected:focus,
-  .flatpickr-day.startRange:focus,
-  .flatpickr-day.endRange:focus,
-  .flatpickr-day.selected:hover,
-  .flatpickr-day.startRange:hover,
-  .flatpickr-day.endRange:hover,
-  .flatpickr-day.selected.prevMonthDay,
-  .flatpickr-day.startRange.prevMonthDay,
-  .flatpickr-day.endRange.prevMonthDay,
-  .flatpickr-day.selected.nextMonthDay,
-  .flatpickr-day.startRange.nextMonthDay,
-  .flatpickr-day.endRange.nextMonthDay {
-    background: linear-gradient(83.21deg, #3245ff 0%, #bc52ee 100%);
-    border-color: transparent;
+  /* Time inputs styling */
+  input[type="time"] {
+    width: 100%;
+    padding: 0.75rem;
+  }
+  
+  /* Date input styling */
+  input[type="date"] {
+    width: 100%;
+    padding: 0.75rem;
   }
   
   .primary-button {
@@ -849,9 +744,7 @@ import Layout from '../layouts/Layout.astro';
       font-size: 1.3rem;
     }
     
-    .form-dates {
-      grid-template-columns: 1fr;
-    }
+    /* Remove the redundant media query override since we're already using column layout */
     
     .form-group input,
     .form-group textarea {

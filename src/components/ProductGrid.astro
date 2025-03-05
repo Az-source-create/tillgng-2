@@ -8,7 +8,23 @@ const currentPage = parseInt(url.searchParams.get('page') || '1');
 const searchTerm = url.searchParams.get('search') || '';
 
 // Fetch products with pagination and search
-const result = await fetchProducts({ page: currentPage, search: searchTerm });
+let result;
+try {
+  result = await fetchProducts({ page: currentPage, search: searchTerm });
+} catch (error) {
+  console.error('Error fetching products:', error);
+  result = { 
+    products: [], 
+    pageInfo: { 
+      currentPage, 
+      totalPages: 1, 
+      totalItems: 0, 
+      hasNextPage: false,
+      hasPreviousPage: currentPage > 1 
+    },
+    error: error.message || 'Failed to load products'
+  };
+}
 const { products, pageInfo } = result;
 
 // Process images server-side for each product
@@ -223,29 +239,42 @@ function getPageUrl(page) {
   
   {processedProducts.length === 0 ? (
     <div class="loading-message">
-      <p>{searchTerm ? `No products found matching "${searchTerm}"` : 'Loading products...'}</p>
+      <p>
+        {searchTerm 
+          ? `No products found matching "${searchTerm}"` 
+          : result.error
+            ? `Error loading products: ${result.error}`
+            : 'Loading products...'}
+      </p>
+      {result.error && (
+        <button class="retry-button" onclick="window.location.reload()">
+          Retry
+        </button>
+      )}
     </div>
   ) : (
     <div class="product-grid">
       {processedProducts.map((product) => (
         <div class={`product-card box ${product.availability && product.availability.available <= 0 ? 'product-unavailable' : ''}`}>
           <div class="product-image-container">
-            {product.availability && product.availability.available <= 0 && (
-              <div class="unavailable-overlay">
-                <div class="unavailable-message">
-                  <span class="unavailable-text">Booked</span>
-                  {product.availability.nextAvailable ? (
-                    <span class="next-available-text">
-                      {product.availability.returningQuantity} {product.availability.returningQuantity === 1 ? 'item' : 'items'} returning on: {product.availability.nextAvailable}
+            {product.availability && product.availability.available <= 0 ? (
+              product.availability.nextAvailable ? (
+                <div class="return-info-overlay">
+                  <div class="return-info-message">
+                    <span class="return-date-text">
+                      Currently booked - {product.availability.returningQuantity} {product.availability.returningQuantity === 1 ? 'item' : 'items'} available from: {product.availability.nextAvailable}
                     </span>
-                  ) : (
-                    <span class="next-available-text">
-                      Currently unavailable
-                    </span>
-                  )}
+                  </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div class="unavailable-overlay">
+                  <div class="unavailable-message">
+                    <span class="unavailable-text">Currently Booked</span>
+                    <span class="next-available-text">No return date available</span>
+                  </div>
+                </div>
+              )
+            ) : null}
             <img 
               src={product.imageUrl} 
               alt={`Image of ${product.Produkt}`}
@@ -257,33 +286,37 @@ function getPageUrl(page) {
           <h2>{product.Produkt}</h2>
           <div class="product-availability">
             {product.availability && (
-              product.availability.available > 0 ? (
-                <div class="availability-container">
-                  <span class="availability-indicator available">
-                    Available: {product.availability.available} of {product.availability.total}
+              <div class="availability-container">
+                <span class={`availability-indicator ${product.availability.available <= 0 ? 'unavailable' : 'available'}`}>
+                  {product.availability.available > 0 ? 
+                    `Available: ${product.availability.available} of ${product.availability.total}` :
+                    `Currently booked: 0 of ${product.availability.total} available`
+                  }
+                </span>
+                
+                {product.availability.hasBookingError ? (
+                  <span class="next-return-indicator error">
+                    <span class="error-icon">⚠️</span> API Error: {product.availability.error || "Failed to fetch booking data"}
                   </span>
-                  {product.availability.nextAvailable && (
-                    <span class="next-return-indicator">
-                      Next return: {product.availability.returningQuantity} {product.availability.returningQuantity === 1 ? 'item' : 'items'} on {product.availability.nextAvailable}
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <div class="availability-container">
-                  <span class="availability-indicator unavailable">
-                    Currently Booked
+                ) : product.availability.hasOverdueReturns ? (
+                  <span class="next-return-indicator overdue">
+                    <span class="overdue-warning">⚠️ Overdue:</span> {product.availability.overdueQuantity} {product.availability.overdueQuantity === 1 ? 'item' : 'items'} since {product.availability.overdueDate} 
+                    <span class="overdue-days">({product.availability.daysOverdue} {product.availability.daysOverdue === 1 ? 'day' : 'days'} late)</span>
                   </span>
-                  {product.availability.nextAvailable ? (
-                    <span class="next-return-indicator">
-                      Returns: {product.availability.returningQuantity} {product.availability.returningQuantity === 1 ? 'item' : 'items'} on {product.availability.nextAvailable}
-                    </span>
-                  ) : (
-                    <span class="next-return-indicator unavailable">
-                      Return date unavailable
-                    </span>
-                  )}
-                </div>
-              )
+                ) : product.availability.nextAvailable && product.availability.available > 0 ? (
+                  <span class="next-return-indicator">
+                    Next return: {product.availability.returningQuantity} {product.availability.returningQuantity === 1 ? 'item' : 'items'} on {product.availability.nextAvailable}
+                  </span>
+                ) : product.availability.nextAvailable ? (
+                  <span class="next-return-indicator">
+                    Will be available: {product.availability.returningQuantity} {product.availability.returningQuantity === 1 ? 'item' : 'items'} on {product.availability.nextAvailable}
+                  </span>
+                ) : (
+                  <span class="next-return-indicator unavailable">
+                    No return date available
+                  </span>
+                )}
+              </div>
             )}
           </div>
           <button 
@@ -292,9 +325,9 @@ function getPageUrl(page) {
             data-product-name={product.Produkt}
             data-next-available={product.availability && product.availability.nextAvailable ? product.availability.nextAvailable : ''}
             data-returning-quantity={product.availability && product.availability.returningQuantity ? product.availability.returningQuantity : 0}
-            disabled={product.availability && product.availability.available <= 0 && !product.availability.nextAvailable}>
-            {product.availability && product.availability.available <= 0 
-              ? (product.availability.nextAvailable ? 'Book When Available' : 'Currently Unavailable')
+            disabled={false}> {/* Allow booking even for currently unavailable items */}
+            {product.availability && product.availability.available <= 0 && product.availability.nextAvailable
+              ? 'Book from the date it becomes available'
               : 'Add to Booking'}
           </button>
         </div>
@@ -535,9 +568,12 @@ function getPageUrl(page) {
   }
   
   /* Product availability styling */
+  .product-image-container {
+    position: relative; /* Always make it relative for overlay positioning */
+  }
+  
   .product-unavailable .product-image-container {
-    position: relative;
-    opacity: 0.8;
+    opacity: 0.9;
   }
   
   .unavailable-overlay {
@@ -546,7 +582,7 @@ function getPageUrl(page) {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.4);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -568,6 +604,9 @@ function getPageUrl(page) {
     font-size: 1.5rem;
     margin-bottom: 0.5rem;
     text-shadow: 0px 1px 3px rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.4);
+    padding: 0.3rem 0.8rem;
+    border-radius: 4px;
   }
   
   .next-available-text {
@@ -577,6 +616,39 @@ function getPageUrl(page) {
     padding: 0.3rem 0.6rem;
     border-radius: 4px;
     font-weight: 500;
+  }
+  
+  .return-info-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: auto;
+    background-color: rgba(50, 69, 255, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    border-radius: 8px 8px 0 0;
+    padding: 0.5rem;
+  }
+  
+  .return-info-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.2rem 0.5rem;
+    text-align: center;
+    width: 100%;
+  }
+  
+  .return-date-text {
+    color: white;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.2rem 0.5rem;
+    width: 100%;
+    text-shadow: 0px 1px 2px rgba(0, 0, 0, 0.5);
   }
   
   .product-availability {
@@ -632,17 +704,56 @@ function getPageUrl(page) {
     box-shadow: 0 4px 8px rgba(139, 92, 246, 0.2);
   }
   
-  .product-unavailable .add-to-booking[disabled] {
-    background: #e5e7eb;
-    color: #6b7280;
-    border: 1px solid #d1d5db;
-    cursor: not-allowed;
-    opacity: 0.7;
+  /* Style button differently for future booking */
+  button.add-to-booking:contains("Book from the date") {
+    background: #f7f0ff;
+    color: #6c2bd9;
+    border: 1px solid #8b5cf6;
+    cursor: pointer;
+    font-size: 0.9rem;
+    box-shadow: 0 2px 4px rgba(139, 92, 246, 0.2);
+  }
+  
+  button.add-to-booking:contains("Book from the date"):hover {
+    background: #f3e8ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(139, 92, 246, 0.3);
   }
   
   .next-return-indicator.unavailable {
     background-color: rgba(239, 68, 68, 0.1);
     color: rgb(239, 68, 68);
+  }
+  
+  .next-return-indicator.overdue {
+    background-color: rgba(239, 139, 24, 0.2);
+    color: rgb(203, 65, 11);
+    font-weight: 500;
+    padding: 0.4rem 0.6rem;
+    border-left: 3px solid rgb(220, 38, 38);
+  }
+  
+  .overdue-warning {
+    font-weight: 700;
+    color: rgb(220, 38, 38);
+  }
+  
+  .overdue-days {
+    font-style: italic;
+    font-size: 0.85em;
+    opacity: 0.9;
+  }
+  
+  .next-return-indicator.error {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: rgb(185, 28, 28);
+    font-weight: 500;
+    padding: 0.4rem 0.6rem;
+    border-left: 3px solid rgb(220, 38, 38);
+  }
+  
+  .error-icon {
+    margin-right: 0.3rem;
   }
   
   .product-debug {
@@ -667,6 +778,31 @@ function getPageUrl(page) {
     text-align: center;
     padding: 2rem;
     color: #4b5563;
+    font-size: 1.2rem;
+  }
+  
+  .retry-button {
+    margin-top: 1rem;
+    padding: 0.8rem 1.5rem;
+    background: linear-gradient(83.21deg, #3245ff 0%, #bc52ee 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    font-size: 1rem;
+    box-shadow: 0 4px 6px rgba(50, 69, 255, 0.2);
+  }
+  
+  .retry-button:hover {
+    opacity: 0.9;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 8px rgba(50, 69, 255, 0.3);
+  }
+  
+  .loading-message p {
+    margin-bottom: 1.5rem;
     font-size: 1.2rem;
   }
 
