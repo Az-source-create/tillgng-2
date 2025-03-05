@@ -117,7 +117,7 @@ function getPageUrl(page) {
   
   document.addEventListener('DOMContentLoaded', async () => {
     // Dynamically import to avoid client/server mismatch
-    const { initBookingSystem, saveBooking } = await import('../utils/api.js');
+    const { initBookingSystem, saveBooking, getBookingsForProduct } = await import('../utils/api.js');
     // Parse the product data
     const dataElement = document.getElementById('api-data');
     if (dataElement && dataElement.dataset.products) {
@@ -129,6 +129,176 @@ function getPageUrl(page) {
         // Use the global function from Cart if available
         if (window.updateBookingCounter) {
           window.updateBookingCounter(booking);
+        }
+        
+        // Client-side fetch for return dates for products that don't have them yet
+        const loadingElements = document.querySelectorAll('.next-return-indicator.loading');
+        if (loadingElements.length > 0) {
+          console.log(`Found ${loadingElements.length} products with pending return dates`);
+          
+          loadingElements.forEach(async (element) => {
+            try {
+              // Find the product card this loading indicator belongs to
+              const productCard = element.closest('.product-card');
+              if (!productCard) return;
+              
+              // Get product ID from the button in the card
+              const addButton = productCard.querySelector('.add-to-booking');
+              if (!addButton) return;
+              
+              const productId = addButton.dataset.productId;
+              const productName = addButton.dataset.productName;
+              
+              if (!productId) return;
+              
+              console.log(`Fetching return dates for ${productName} (${productId})`);
+              
+              // Try to fetch bookings for this product
+              const bookingsDetails = await getBookingsForProduct(productId);
+              
+              if (bookingsDetails && bookingsDetails.length > 0) {
+                console.log(`Found ${bookingsDetails.length} bookings for ${productName}`);
+                
+                // Process bookings to find future return dates
+                const futureReturns = [];
+                const now = new Date();
+                
+                bookingsDetails.forEach(booking => {
+                  try {
+                    // Get return date from booking
+                    const returnDateField = 
+                      booking['Return date-time'] || 
+                      booking['ReturnDateTime'] || 
+                      booking['returnDateTime'] || 
+                      booking['Return datetime'] || 
+                      booking['return_date'];
+                    
+                    if (returnDateField) {
+                      // Parse the return date
+                      let returnDate;
+                      if (typeof returnDateField === 'string') {
+                        returnDate = new Date(returnDateField);
+                      } else if (returnDateField && returnDateField.value) {
+                        returnDate = new Date(returnDateField.value);
+                      }
+                      
+                      if (returnDate && returnDate > now) {
+                        // Get quantity
+                        const quantityField = booking['Quantity'] || booking['quantity'] || booking['Antal'] || 1;
+                        const quantity = parseInt(quantityField) || 1;
+                        
+                        // Format the date nicely
+                        const formattedDate = returnDate.toLocaleString('sv-SE', {
+                          day: '2-digit',
+                          month: 'long',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          timeZone: 'Europe/Stockholm'
+                        });
+                        
+                        futureReturns.push({
+                          returnDate,
+                          formattedDate,
+                          quantity
+                        });
+                      }
+                    }
+                  } catch (err) {
+                    console.error('Error processing booking:', err);
+                  }
+                });
+                
+                // If we found future returns, update the UI
+                if (futureReturns.length > 0) {
+                  // Sort by earliest return date
+                  futureReturns.sort((a, b) => a.returnDate - b.returnDate);
+                  
+                  const nextReturn = futureReturns[0];
+                  const formattedDate = nextReturn.formattedDate;
+                  const returningQty = nextReturn.quantity;
+                  
+                  // Update the loading indicator with the return date
+                  element.innerHTML = `
+                    Will be available: ${returningQty} ${returningQty === 1 ? 'item' : 'items'} on ${formattedDate}
+                  `;
+                  element.classList.remove('loading');
+                  
+                  // Update the button text and data attributes
+                  if (addButton) {
+                    addButton.textContent = 'Book from the date it becomes available';
+                    addButton.dataset.nextAvailable = formattedDate;
+                    addButton.dataset.returningQuantity = returningQty;
+                  }
+                  
+                  // Also update the image overlay if exists
+                  const overlay = productCard.querySelector('.checking-overlay, .unavailable-overlay');
+                  if (overlay) {
+                    overlay.className = 'return-info-overlay';
+                    overlay.innerHTML = `
+                      <div class="return-info-message">
+                        <span class="unavailable-text">Currently Booked</span>
+                        <span class="return-date-text">
+                          ${returningQty} ${returningQty === 1 ? 'item' : 'items'} available from: ${formattedDate}
+                        </span>
+                      </div>
+                    `;
+                  }
+                } else {
+                  // No future return dates found
+                  element.innerHTML = 'Currently unavailable with no return date';
+                  element.classList.remove('loading');
+                  element.classList.add('unavailable');
+                  
+                  // Update the overlay to show proper "no return date" message
+                  const overlay = productCard.querySelector('.checking-overlay');
+                  if (overlay) {
+                    overlay.className = 'unavailable-overlay';
+                    overlay.innerHTML = `
+                      <div class="unavailable-message">
+                        <span class="unavailable-text">Currently Booked</span>
+                        <span class="next-available-text">No return date available</span>
+                      </div>
+                    `;
+                  }
+                }
+              } else {
+                // No bookings found
+                element.innerHTML = 'Currently unavailable with no return date';
+                element.classList.remove('loading');
+                element.classList.add('unavailable');
+                
+                // Update the overlay to show proper "no return date" message
+                const overlay = productCard.querySelector('.checking-overlay');
+                if (overlay) {
+                  overlay.className = 'unavailable-overlay';
+                  overlay.innerHTML = `
+                    <div class="unavailable-message">
+                      <span class="unavailable-text">Currently Booked</span>
+                      <span class="next-available-text">No return date available</span>
+                    </div>
+                  `;
+                }
+              }
+            } catch (err) {
+              console.error('Error fetching bookings:', err);
+              element.innerHTML = `Error loading return dates: ${err.message}`;
+              element.classList.remove('loading');
+              element.classList.add('error');
+              
+              // Update the overlay to show proper error message
+              const overlay = productCard.querySelector('.checking-overlay');
+              if (overlay) {
+                overlay.className = 'unavailable-overlay';
+                overlay.innerHTML = `
+                  <div class="unavailable-message">
+                    <span class="unavailable-text">Currently Booked</span>
+                    <span class="next-available-text">Error loading return dates</span>
+                  </div>
+                `;
+              }
+            }
+          });
         }
         
         // Set up event listeners for all "Add to Booking" buttons
@@ -261,16 +431,17 @@ function getPageUrl(page) {
               product.availability.nextAvailable ? (
                 <div class="return-info-overlay">
                   <div class="return-info-message">
+                    <span class="unavailable-text">Currently Booked</span>
                     <span class="return-date-text">
-                      Currently booked - {product.availability.returningQuantity} {product.availability.returningQuantity === 1 ? 'item' : 'items'} available from: {product.availability.nextAvailable}
+                      {product.availability.returningQuantity} {product.availability.returningQuantity === 1 ? 'item' : 'items'} available from: {product.availability.nextAvailable}
                     </span>
                   </div>
                 </div>
               ) : (
-                <div class="unavailable-overlay">
+                <div class="checking-overlay">
                   <div class="unavailable-message">
                     <span class="unavailable-text">Currently Booked</span>
-                    <span class="next-available-text">No return date available</span>
+                    <span class="next-available-text">Checking return dates...</span>
                   </div>
                 </div>
               )
@@ -294,26 +465,34 @@ function getPageUrl(page) {
                   }
                 </span>
                 
-                {product.availability.hasBookingError ? (
+                {product.availability.hasBookingError && (
                   <span class="next-return-indicator error">
                     <span class="error-icon">⚠️</span> API Error: {product.availability.error || "Failed to fetch booking data"}
                   </span>
-                ) : product.availability.hasOverdueReturns ? (
+                )}
+                
+                {product.availability.hasOverdueReturns && (
                   <span class="next-return-indicator overdue">
                     <span class="overdue-warning">⚠️ Overdue:</span> {product.availability.overdueQuantity} {product.availability.overdueQuantity === 1 ? 'item' : 'items'} since {product.availability.overdueDate} 
                     <span class="overdue-days">({product.availability.daysOverdue} {product.availability.daysOverdue === 1 ? 'day' : 'days'} late)</span>
                   </span>
-                ) : product.availability.nextAvailable && product.availability.available > 0 ? (
+                )}
+                
+                {product.availability.nextAvailable && product.availability.available > 0 && (
                   <span class="next-return-indicator">
                     Next return: {product.availability.returningQuantity} {product.availability.returningQuantity === 1 ? 'item' : 'items'} on {product.availability.nextAvailable}
                   </span>
-                ) : product.availability.nextAvailable ? (
+                )}
+                
+                {product.availability.nextAvailable && product.availability.available <= 0 && (
                   <span class="next-return-indicator">
                     Will be available: {product.availability.returningQuantity} {product.availability.returningQuantity === 1 ? 'item' : 'items'} on {product.availability.nextAvailable}
                   </span>
-                ) : (
-                  <span class="next-return-indicator unavailable">
-                    No return date available
+                )}
+                
+                {product.availability.available <= 0 && !product.availability.nextAvailable && !product.availability.hasOverdueReturns && !product.availability.hasBookingError && (
+                  <span class="next-return-indicator loading">
+                    <span class="loading-icon">⌛</span> Checking return dates...
                   </span>
                 )}
               </div>
@@ -576,7 +755,7 @@ function getPageUrl(page) {
     opacity: 0.9;
   }
   
-  .unavailable-overlay {
+  .unavailable-overlay, .checking-overlay {
     position: absolute;
     top: 0;
     left: 0;
@@ -588,6 +767,10 @@ function getPageUrl(page) {
     align-items: center;
     z-index: 10;
     border-radius: 8px;
+  }
+  
+  .checking-overlay {
+    background-color: rgba(0, 0, 0, 0.4);
   }
   
   .unavailable-message {
@@ -623,13 +806,13 @@ function getPageUrl(page) {
     top: 0;
     left: 0;
     width: 100%;
-    height: auto;
-    background-color: rgba(50, 69, 255, 0.85);
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.4);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 10;
-    border-radius: 8px 8px 0 0;
+    border-radius: 8px;
     padding: 0.5rem;
   }
   
@@ -637,18 +820,19 @@ function getPageUrl(page) {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 0.2rem 0.5rem;
+    padding: 1rem;
     text-align: center;
-    width: 100%;
   }
   
   .return-date-text {
     color: white;
-    font-size: 0.9rem;
-    font-weight: 600;
-    padding: 0.2rem 0.5rem;
-    width: 100%;
-    text-shadow: 0px 1px 2px rgba(0, 0, 0, 0.5);
+    font-size: 1.1rem;
+    font-weight: 700;
+    padding: 0.3rem 0.8rem;
+    text-shadow: 0px 1px 3px rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
   }
   
   .product-availability {
@@ -752,8 +936,23 @@ function getPageUrl(page) {
     border-left: 3px solid rgb(220, 38, 38);
   }
   
-  .error-icon {
+  .error-icon, .loading-icon {
     margin-right: 0.3rem;
+  }
+  
+  .next-return-indicator.loading {
+    background-color: rgba(59, 130, 246, 0.15);
+    color: rgb(37, 99, 235);
+    font-weight: 500;
+    padding: 0.4rem 0.6rem;
+    border-left: 3px solid rgb(59, 130, 246);
+    animation: pulse 1.5s infinite ease-in-out;
+  }
+  
+  @keyframes pulse {
+    0% { opacity: 0.7; }
+    50% { opacity: 1; }
+    100% { opacity: 0.7; }
   }
   
   .product-debug {
