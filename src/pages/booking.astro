@@ -29,14 +29,21 @@ import DateTimePicker from '../components/DateTimePicker.astro';
       </div>
       
       <div id="booking-actions" style="display: none;">
-        <button id="clear-booking" class="danger-button">Clear Booking</button>
-        <a href="/" class="back-button">Back to Products</a>
+        <button id="clear-booking" class="danger-button">Rensa varukorgen</button>
+        <a href="/" class="back-button">Tillbaka till produkter</a>
       </div>
       
       <div id="personal-info-form" style="display: none;">
         <h2>Scheduling</h2>
         <div class="opening-hours-notice">
-          <p>Our opening hours can be found at <a href="https://segepark.com" target="_blank" rel="noopener noreferrer">SegePark.com</a>. Make sure to pick the pickup and return datetimes that fit our opening hours.</p>
+          <p>
+            Våra öppettider kan hittas på 
+            <a href="https://segepark.com" target="_blank" rel="noopener noreferrer">
+              SegePark.com
+            </a>. 
+            Säkerställ att ditt upphämtnings- och återlämningsdatum och tid matchar vår öppettider.
+            Maximal uthyrningsperioud är 7 dagar. Kontaktinfo finns på SegePark.com.
+          </p>
         </div>
         <form id="booking-form">
           <div class="form-dates">
@@ -44,29 +51,27 @@ import DateTimePicker from '../components/DateTimePicker.astro';
               <DateTimePicker 
                 id="pickupDateTime" 
                 name="pickupDateTime"
-                label="Pickup Date and Time"
+                label="Upphämtningsdatum och tid"
                 required={true}
                 min={new Date().toISOString().slice(0, 16)} // Current date-time as minimum
               />
-              <small class="datetime-format-hint">Is your selected pickup date and time.</small>
             </div>
             
             <div class="form-group">
               <DateTimePicker 
                 id="returnDateTime" 
                 name="returnDateTime"
-                label="Return Date and Time"
+                label="Återlämningsdatum och tid"
                 required={true}
                 initialDate={new Date(new Date().getTime() + 4 * 60 * 60 * 1000)}
                 min={new Date().toISOString().slice(0, 16)} // Current date-time as minimum
               />
-              <small class="datetime-format-hint">Is your selected return date and time. Maximum rental period is 7 days.</small>
             </div>
           </div>
           
-          <h2>Your Information</h2>
+          <h2>Din information</h2>
           <div class="form-group">
-            <label for="fullName">Full Name</label>
+            <label for="fullName">Namn</label>
             <input type="text" id="fullName" name="fullName" required>
           </div>
           
@@ -86,11 +91,11 @@ import DateTimePicker from '../components/DateTimePicker.astro';
           </div>
           
           <div class="form-group">
-            <label for="notes">Additional Notes</label>
+            <label for="notes">Notes/Anteckningar för nåt mer du vill säga</label>
             <textarea id="notes" name="notes"></textarea>
           </div>
           
-          <button type="submit" class="primary-button">Submit Booking</button>
+          <button type="submit" class="primary-button">Skicka in bokningen</button>
         </form>
       </div>
     </div>
@@ -119,26 +124,15 @@ import DateTimePicker from '../components/DateTimePicker.astro';
         const itemElement = document.createElement('div');
         itemElement.className = 'booking-item';
         
-        if (item.nextAvailable) {
-          itemElement.innerHTML = `
-            <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; width: 100%; margin-bottom: 2rem;">
-              <h3 style="margin: 0; font-size: 1.3rem; color: #111827; text-align: center; font-weight: 600;">${item.name}</h3>
-              <h3 style="margin: 0; font-size: 1.3rem; color: #111827; text-align: center; font-weight: 600;">${item.available} of ${item.totalQuantity} available</h3>
-              <h3 style="margin: 0; font-size: 1.3rem; color: #111827; text-align: center; font-weight: 600;">${item.returningQuantity} item(s) return(s) on ${item.nextAvailable}</h3>
-              <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin: 15px 0;">
-                <button class="quantity-btn decrease" data-id="${item.id}" style="width: 50px; height: 50px; border-radius: 50%; background: #fff0f0; color: #cc0000; border: 2px solid #ff3333; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); margin: 0 8px;">-</button>
-                <span style="min-width: 40px; text-align: center; font-weight: 600; font-size: 1.5rem; margin: 0 10px;">${item.quantity}</span>
-                <button class="quantity-btn increase" data-id="${item.id}" style="width: 50px; height: 50px; border-radius: 50%; background: #dcf5ff; color: #0066cc; border: 2px solid #0099ff; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); margin: 0 8px;">+</button>
-              </div>
-              <button class="remove-item" data-id="${item.id}" style="background: #fee2e2; border: 1px solid #ef4444; border-radius: 8px; color: #ef4444; cursor: pointer; font-weight: 600; padding: 10px 16px; font-size: 1rem; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.15); margin-top: 5px; width: auto;">Remove Item</button>
-            </div>
-          `;
-        } else {
-
-        itemElement.innerHTML = `
-          <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; width: 100%; margin-bottom: 2rem;">
+        // Common HTML content for all items
+        const baseContent = `
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; width: 100%; max-width: 300px; margin: auto; margin-bottom: 2rem;">
             <h3 style="margin: 0; font-size: 1.3rem; color: #111827; text-align: center; font-weight: 600;">${item.name}</h3>
-            <h3 style="margin: 0; font-size: 1.3rem; color: #111827; text-align: center; font-weight: 600;">${item.available} of ${item.totalQuantity} available</h3>
+            <h3 style="margin: 0; font-size: 1.3rem; color: #111827; text-align: center;">${item.available} av ${item.totalQuantity} tillgängliga</h3>
+            ${item.nextAvailable ? `
+              <h3 style="margin: 0; font-size: 1rem; color: #111827; text-align: center;">${item.returningQuantity} exemplar återlämnas den ${item.nextAvailable}</h3>
+            ` : ''}
+            <h4 style="margin: 0; font-size: 1rem; color: #111827; text-align: center; font-weight: 600;">Rekommenderad betalning är ${item["Totalhyrkostnad per dag"]} kr per exemplar per dag av vilket ${item['Försäkringsavgift']} kr är försäkringsavgift och resten går till områdesföreningen i Sege Park. Eventuell betalning sker på plats.</h4>
             <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin: 15px 0;">
               <button class="quantity-btn decrease" data-id="${item.id}" style="width: 50px; height: 50px; border-radius: 50%; background: #fff0f0; color: #cc0000; border: 2px solid #ff3333; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); margin: 0 8px;">-</button>
               <span style="min-width: 40px; text-align: center; font-weight: 600; font-size: 1.5rem; margin: 0 10px;">${item.quantity}</span>
@@ -147,7 +141,8 @@ import DateTimePicker from '../components/DateTimePicker.astro';
             <button class="remove-item" data-id="${item.id}" style="background: #fee2e2; border: 1px solid #ef4444; border-radius: 8px; color: #ef4444; cursor: pointer; font-weight: 600; padding: 10px 16px; font-size: 1rem; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.15); margin-top: 5px; width: auto;">Remove Item</button>
           </div>
         `;
-        }
+
+        itemElement.innerHTML = baseContent;
         bookingList.appendChild(itemElement);
       });
       
@@ -681,12 +676,10 @@ import DateTimePicker from '../components/DateTimePicker.astro';
   }
   
   .time-format-hint,
-  .date-format-hint,
-  .datetime-format-hint {
+  .date-format-hint {
     display: block;
     font-size: 0.8rem;
     color: #6b7280;
-    margin-top: 0.25rem;
   }
   
   /* 24-hour time format styles */

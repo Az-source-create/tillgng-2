@@ -237,9 +237,9 @@ function getPageUrl(page) {
                     overlay.className = 'return-info-overlay';
                     overlay.innerHTML = `
                       <div class="return-info-message">
-                        <span class="unavailable-text">Currently Booked</span>
+                        <span class="unavailable-text">Bokad</span>
                         <span class="return-date-text">
-                          ${returningQty} ${returningQty === 1 ? 'item' : 'items'} available from: ${formattedDate}
+                          ${returningQty} ${returningQty === 1 ? 'exemplar' : 'exemplar'} tillgänglig från: ${formattedDate}
                         </span>
                       </div>
                     `;
@@ -309,6 +309,7 @@ function getPageUrl(page) {
             const available = e.target.dataset.available;
             const totalQuantity = e.target.dataset.totalQuantity;
             const nextAvailable = e.target.dataset.nextAvailable;
+            const allProductInfo = JSON.parse(e.target.dataset.allProductInfo);
             
             // Check if product is currently booked but available in future
             const isCurrentlyBooked = e.target.closest('.product-card').classList.contains('product-unavailable');
@@ -347,14 +348,17 @@ function getPageUrl(page) {
             if (existingItem) {
               existingItem.quantity += 1;
             } else {
-              booking.items.push({
+                booking.items.push({
                 id: productId,
                 name: productName,
                 quantity: 1,
                 available: available || null,
                 totalQuantity: totalQuantity || null,
                 nextAvailable: nextAvailable || null,
-                returningQuantity: returningQuantity || 0
+                returningQuantity: returningQuantity || 0,
+                'Försäkringsavgift': allProductInfo['Försäkringsavgift'],
+                'Totalhyrkostnad per dag': allProductInfo['Totalhyrkostnad per dag'],
+                'Hyrkostnad per dag': allProductInfo['Hyrkostnad per dag']
               });
             }
             
@@ -382,7 +386,14 @@ function getPageUrl(page) {
   style="display: none;"></div>
 
 <div class="product-grid-container">
-  <h1>Our Products</h1>
+  <h1>Navet Tillgång</h1>
+
+  <h2>
+    Välkommen! :) Här kan du hyra/låna utrustning från Navet i Sege Park. 
+    Ni kan ha tillgång till verktyg, spel, städredskap, friluftsutrustning, prylar för barn, sportutrustning, 
+    projektor, stor högtalare, kreativa redskap, symaskin och massa annat. 
+    Utforska och sök!
+  </h2>
   
   <div class="sticky-header">
     <Cart />
@@ -392,11 +403,11 @@ function getPageUrl(page) {
         type="text"
         id="product-search"
         name="search"
-        placeholder="Search products..."
+        placeholder="Sök produkter..."
         class="search-input"
         value={searchTerm}
       />
-      <button type="submit" class="search-button">Search</button>
+      <button type="submit" class="search-button">Sök</button>
     </form>
     
     {searchTerm && (
@@ -435,16 +446,16 @@ function getPageUrl(page) {
               product.availability.nextAvailable ? (
                 <div class="return-info-overlay">
                   <div class="return-info-message">
-                    <span class="unavailable-text">Currently Booked</span>
+                    <span class="unavailable-text">Bokad</span>
                     <span class="return-date-text">
-                      {product.availability.returningQuantity} {product.availability.returningQuantity === 1 ? 'item' : 'items'} available from: {product.availability.nextAvailable}
+                      {product.availability.returningQuantity} {product.availability.returningQuantity === 1 ? 'exemplar' : 'exemplar'} tillgänglig från: {product.availability.nextAvailable}
                     </span>
                   </div>
                 </div>
               ) : (
                 <div class="checking-overlay">
                   <div class="unavailable-message">
-                    <span class="unavailable-text">Currently Booked</span>
+                    <span class="unavailable-text">Bokad</span>
                     <span class="next-available-text">Checking return dates...</span>
                   </div>
                 </div>
@@ -488,12 +499,6 @@ function getPageUrl(page) {
                   </span>
                 )}
                 
-                {product.availability.nextAvailable && product.availability.available <= 0 && (
-                  <span class="next-return-indicator">
-                    Will be available: {product.availability.returningQuantity} {product.availability.returningQuantity === 1 ? 'item' : 'items'} on {product.availability.nextAvailable}
-                  </span>
-                )}
-                
                 {product.availability.available <= 0 && !product.availability.nextAvailable && !product.availability.hasOverdueReturns && !product.availability.hasBookingError && (
                   <span class="next-return-indicator loading">
                     <span class="loading-icon">⌛</span> Checking return dates...
@@ -504,6 +509,7 @@ function getPageUrl(page) {
           </div>
           <button 
             class="add-to-booking"
+            data-all-product-info={JSON.stringify(product)}
             data-product-id={product.Id || product.id}
             data-product-name={product.Produkt}
             data-available={product.availability ? product.availability.available : ''}
@@ -512,8 +518,8 @@ function getPageUrl(page) {
             data-returning-quantity={product.availability && product.availability.returningQuantity ? product.availability.returningQuantity : 0}
             disabled={false}> {/* Allow booking even for currently unavailable items */}
             {product.availability && product.availability.available <= 0 && product.availability.nextAvailable
-              ? 'Book from the date it becomes available'
-              : 'Add to Booking'}
+              ? 'Boka från datum produkten blir tillgänglig'
+              : 'Lägg till bokningen'}
           </button>
         </div>
       ))}
@@ -596,7 +602,7 @@ function getPageUrl(page) {
 <style>
   .product-grid-container {
     padding: 2rem 1rem;
-    max-width: 1200px;
+    max-width: 400px;
     margin: 0 auto;
   }
   
@@ -611,8 +617,8 @@ function getPageUrl(page) {
   }
   
   .search-container {
-    width: 100%;
     display: flex;
+    flex-direction: column;
     gap: 0.5rem;
   }
   
