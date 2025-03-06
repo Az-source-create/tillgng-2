@@ -306,6 +306,8 @@ function getPageUrl(page) {
           button.addEventListener('click', (e) => {
             const productId = e.target.dataset.productId;
             const productName = e.target.dataset.productName;
+            const available = e.target.dataset.available;
+            const totalQuantity = e.target.dataset.totalQuantity;
             const nextAvailable = e.target.dataset.nextAvailable;
             
             // Check if product is currently booked but available in future
@@ -349,6 +351,8 @@ function getPageUrl(page) {
                 id: productId,
                 name: productName,
                 quantity: 1,
+                available: available || null,
+                totalQuantity: totalQuantity || null,
                 nextAvailable: nextAvailable || null,
                 returningQuantity: returningQuantity || 0
               });
@@ -502,6 +506,8 @@ function getPageUrl(page) {
             class="add-to-booking"
             data-product-id={product.Id || product.id}
             data-product-name={product.Produkt}
+            data-available={product.availability ? product.availability.available : ''}
+            data-total-quantity={product.availability ? product.availability.total : ''}
             data-next-available={product.availability && product.availability.nextAvailable ? product.availability.nextAvailable : ''}
             data-returning-quantity={product.availability && product.availability.returningQuantity ? product.availability.returningQuantity : 0}
             disabled={false}> {/* Allow booking even for currently unavailable items */}
@@ -701,23 +707,6 @@ function getPageUrl(page) {
     flex-direction: column;
   }
 
-  .product-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 1.5rem;
-  }
-
-  .product-card {
-    padding: 1.5rem;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.8);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    transition: transform 0.2s, box-shadow 0.2s;
-    display: flex;
-    flex-direction: column;
-  }
-
   .product-card:hover {
     transform: translateY(-5px);
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
@@ -725,7 +714,7 @@ function getPageUrl(page) {
 
   .product-image-container {
     width: 100%;
-    height: 180px;
+    height: 200px;
     margin-bottom: 1rem;
     overflow: hidden;
     border-radius: 8px;
@@ -1183,19 +1172,4 @@ function getPageUrl(page) {
     color: #6b7280;
   }
 
-  /* Responsive adjustments */
-  @media screen and (max-width: 768px) {
-    .product-grid {
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 1rem;
-    }
-    
-    .product-card {
-      padding: 1rem;
-    }
-    
-    .pagination-controls {
-      flex-wrap: wrap;
-    }
-  }
 </style>

@@ -119,9 +119,26 @@ import DateTimePicker from '../components/DateTimePicker.astro';
         const itemElement = document.createElement('div');
         itemElement.className = 'booking-item';
         
+        if (item.nextAvailable) {
+          itemElement.innerHTML = `
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; width: 100%; margin-bottom: 2rem;">
+              <h3 style="margin: 0; font-size: 1.3rem; color: #111827; text-align: center; font-weight: 600;">${item.name}</h3>
+              <h3 style="margin: 0; font-size: 1.3rem; color: #111827; text-align: center; font-weight: 600;">${item.available} of ${item.totalQuantity} available</h3>
+              <h3 style="margin: 0; font-size: 1.3rem; color: #111827; text-align: center; font-weight: 600;">${item.returningQuantity} item(s) return(s) on ${item.nextAvailable}</h3>
+              <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin: 15px 0;">
+                <button class="quantity-btn decrease" data-id="${item.id}" style="width: 50px; height: 50px; border-radius: 50%; background: #fff0f0; color: #cc0000; border: 2px solid #ff3333; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); margin: 0 8px;">-</button>
+                <span style="min-width: 40px; text-align: center; font-weight: 600; font-size: 1.5rem; margin: 0 10px;">${item.quantity}</span>
+                <button class="quantity-btn increase" data-id="${item.id}" style="width: 50px; height: 50px; border-radius: 50%; background: #dcf5ff; color: #0066cc; border: 2px solid #0099ff; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); margin: 0 8px;">+</button>
+              </div>
+              <button class="remove-item" data-id="${item.id}" style="background: #fee2e2; border: 1px solid #ef4444; border-radius: 8px; color: #ef4444; cursor: pointer; font-weight: 600; padding: 10px 16px; font-size: 1rem; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.15); margin-top: 5px; width: auto;">Remove Item</button>
+            </div>
+          `;
+        } else {
+
         itemElement.innerHTML = `
           <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; width: 100%; margin-bottom: 2rem;">
             <h3 style="margin: 0; font-size: 1.3rem; color: #111827; text-align: center; font-weight: 600;">${item.name}</h3>
+            <h3 style="margin: 0; font-size: 1.3rem; color: #111827; text-align: center; font-weight: 600;">${item.available} of ${item.totalQuantity} available</h3>
             <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin: 15px 0;">
               <button class="quantity-btn decrease" data-id="${item.id}" style="width: 50px; height: 50px; border-radius: 50%; background: #fff0f0; color: #cc0000; border: 2px solid #ff3333; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); margin: 0 8px;">-</button>
               <span style="min-width: 40px; text-align: center; font-weight: 600; font-size: 1.5rem; margin: 0 10px;">${item.quantity}</span>
@@ -130,7 +147,7 @@ import DateTimePicker from '../components/DateTimePicker.astro';
             <button class="remove-item" data-id="${item.id}" style="background: #fee2e2; border: 1px solid #ef4444; border-radius: 8px; color: #ef4444; cursor: pointer; font-weight: 600; padding: 10px 16px; font-size: 1rem; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.15); margin-top: 5px; width: auto;">Remove Item</button>
           </div>
         `;
-        
+        }
         bookingList.appendChild(itemElement);
       });
       
