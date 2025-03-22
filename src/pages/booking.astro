@@ -34,6 +34,26 @@ import DateTimePicker from '../components/DateTimePicker.astro';
       </div>
       
       <div id="personal-info-form" style="display: none;">
+        <h2>Regler för lån av utrustning</h2>
+        <div class="rules-section">
+          <ul>
+            <li>Eventuell betalning sker på plats.</li>
+            <li>Lånad pryl/utrustning får inte lämnas vidare till annan låntagare.</li>
+            <li>Låntagaren är ansvarig för att all utrustning sköts och används på ett korrekt sätt.</li>
+            <li>Prylar/utrustning skall lämnas tillbaka rengjorda och i det skick de lånats ut i.</li>
+            <li>Eventuella skador ska anmälas vid återlämning. Motsvarande kostnad för skador debiteras låntagaren.</li>
+            <li>Drevet ansvarar inte för skador under utlånings- uthyrningsperioden, vare sig sak- eller personskador.</li>
+            <li>
+                Vill du förlänga låneperioden ska det kommuniceras innan perioden löper ut. (OBS! kontoret har begränsad öppettid/telefontid. 
+                Se 
+                <a href="https://segepark.com" target="_blank" rel="noopener noreferrer">
+                  SegePark.com
+                </a>)
+            </li>
+            <li>Vid försening av återlämning utan kommunikation debiteras en avgift på 100 kr per försenad dag.</li>
+          </ul>
+        </div>
+        
         <h2>Scheduling</h2>
         <div class="opening-hours-notice">
           <p>
@@ -408,6 +428,33 @@ import DateTimePicker from '../components/DateTimePicker.astro';
     padding: 2rem 1rem;
     max-width: 800px;
     margin: 0 auto;
+  }
+  
+  .rules-section {
+    background-color: #f9f9f9;
+    border-left: 4px solid #3245ff;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border-radius: 4px;
+  }
+  
+  .rules-section ul {
+    margin: 0;
+    padding-left: 1.5rem;
+    list-style-type: disc;
+  }
+  
+  .rules-section li {
+    margin: 0.5rem 0;
+    line-height: 1.5;
+    color: #333;
+    padding-left: 0.5rem;
+    display: list-item;
+  }
+  
+  .rules-section li::marker {
+    color: #3245ff;
+    font-size: 1.2em;
   }
   
   .opening-hours-notice {
