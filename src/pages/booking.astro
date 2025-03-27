@@ -373,10 +373,12 @@ import DateTimePicker from '../components/DateTimePicker.astro';
           const pickupForConfirmation = pickupFormatted;
           const returnForConfirmation = returnFormatted;
           
-          // Encode booking items for URL (keeping only name and quantity)
+          // Encode booking items for URL (including name, quantity, and recommended price info)
           const itemsForURL = booking.items.map(item => ({
             name: item.name,
-            quantity: item.quantity
+            quantity: item.quantity,
+            recommendedPrice: item["Totalhyrkostnad per dag"],
+            insuranceFee: item["Försäkringsavgift"]
           }));
           const encodedItems = encodeURIComponent(JSON.stringify(itemsForURL));
           

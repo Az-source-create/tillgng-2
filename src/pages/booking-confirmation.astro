@@ -16,7 +16,12 @@ const bookingData = {
 try {
   const itemsParam = params.get('items');
   if (itemsParam) {
-    bookingData.items = JSON.parse(decodeURIComponent(itemsParam));
+    // Parse the items JSON which contains name, quantity, and now we'll include price info
+    const parsedItems = JSON.parse(decodeURIComponent(itemsParam));
+    bookingData.items = parsedItems;
+    
+    // Log the parsed items for debugging
+    console.log('Parsed booking items:', parsedItems);
   }
 } catch (error) {
   console.error('Error parsing items:', error);
@@ -139,8 +144,18 @@ function formatDate(dateString) {
             <ul class="items-list">
               {bookingData.items.map(item => (
                 <li class="item">
-                  <span class="item-name">{item.name}</span>
-                  <span class="item-quantity">x{item.quantity}</span>
+                  <div class="item-details">
+                    <span class="item-name">{item.name}</span>
+                    <span class="item-quantity">x{item.quantity}</span>
+                    {item.recommendedPrice && (
+                      <div class="item-pricing">
+                        <span class="price-detail">Rekommenderad betalning: {item.recommendedPrice} kr per dag</span>
+                        {item.insuranceFee && (
+                          <span class="price-detail">(varav {item.insuranceFee} kr är försäkringsavgift)</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -276,7 +291,7 @@ function formatDate(dateString) {
   
   .item {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
     padding: 0.75rem;
     margin-bottom: 0.5rem;
     background: white;
@@ -284,9 +299,17 @@ function formatDate(dateString) {
     border: 1px solid #e5e7eb;
   }
   
+  .item-details {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
   .item-name {
     font-weight: 500;
     color: #111827;
+    margin-right: auto;
   }
   
   .item-quantity {
@@ -295,6 +318,23 @@ function formatDate(dateString) {
     background: #eef2ff;
     padding: 0.25rem 0.5rem;
     border-radius: 9999px;
+  }
+  
+  .item-pricing {
+    width: 100%;
+    margin-top: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.9rem;
+    color: #4b5563;
+    background-color: #f3f4f6;
+    padding: 0.5rem;
+    border-radius: 4px;
+  }
+  
+  .price-detail {
+    display: block;
   }
   
   .no-items {
