@@ -1,4 +1,8 @@
-# This project was built using Astro Starter Kit: Basics
+# Tillgång is a web app equimpent library management
+
+## This project was built using Astro Build and Starter Kit: Basics
+
+using the command
 
 ```sh
 npm create astro@latest -- --template basics
@@ -27,11 +31,11 @@ Inside of your Astro project, you'll see the following folders and files:
 └── package.json
 ```
 
-To learn more about the folder structure of an Astro project, refer to [our guide on project structure](https://docs.astro.build/en/basics/project-structure/).
+To learn more about the folder structure of an Astro project, refer to [a guide on project structure](https://docs.astro.build/en/basics/project-structure/).
 
 ## 🔑 Environment Setup
 
-This project integrates with [NocoDB](https://nocodb.com/) to fetch and display product data. You'll need to set up environment variables to connect to your NocoDB instance.
+This project integrates with [NocoDB](https://nocodb.com/) to fetch and display product data and store the bookings. You'll need to set up environment variables to connect to your NocoDB instance.
 
 ### Setting Up Environment Variables
 
@@ -39,8 +43,13 @@ This project integrates with [NocoDB](https://nocodb.com/) to fetch and display 
 2. Add the following variables to your `.env` file:
 
 ```
+# NocoDB API Configuration
+# The API token for authenticating with NocoDB
 NOCODB_API_TOKEN=your_nocodb_api_token_here
-NOCODB_API_URL=your_nocodb_api_endpoint_here
+# The NocoDB API endpoint URL for retrieving records
+# Example: https://app.nocodb.com/api/v2/tables/{table_id}/records
+PRODUCTS_TABLE_URL=your_nocodb_api_endpoint_here
+BOOKING_TABLE_URL=your_nocodb_bookings_table
 ```
 
 ### Getting NocoDB Values
@@ -67,6 +76,11 @@ All commands are run from the root of the project, from a terminal:
 | `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
 | `npm run astro -- --help` | Get help using the Astro CLI                     |
 
-## 👀 Want to learn more?
+## Sending confirmation emails.
 
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+For sending confirmation emails we are looking into using Resend.com
+
+## To deploy to production you can use:
+
+Railway.com or similar
+

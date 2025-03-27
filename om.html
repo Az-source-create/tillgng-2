@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="icon" type="image/svg+xml" href="/public/navet.jpg">
+    <title>Om Tillgång - Ett Öppen-källkodsprojekt</title>
+    <style>
+        :root {
+            --background: #f8f9fa;
+            --foreground: #111827;
+            --primary-gradient-start: #3245ff;
+            --primary-gradient-end: #bc52ee;
+            --border: #e5e7eb;
+            --card-background: white;
+            --accent-blue: #4f46e5;
+            --muted: #6b7280;
+            --radius: 16px;
+            --radius-sm: 8px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--background);
+            color: var(--foreground);
+            line-height: 1.6;
+            padding: 1rem;
+        }
+
+        .page-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        .header-with-home {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            background: linear-gradient(83.21deg, var(--primary-gradient-start) 0%, var(--primary-gradient-end) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1rem;
+        }
+
+        .main-card {
+            background: var(--card-background);
+            border-radius: var(--radius);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .description {
+            margin-bottom: 1.5rem;
+        }
+
+        .section {
+            margin-bottom: 1.5rem;
+            padding: 1.5rem;
+            background: #f9fafb;
+            border-radius: var(--radius-sm);
+            border-left: 4px solid var(--accent-blue);
+        }
+
+        .section h2 {
+            color: var(--accent-blue);
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+
+        a {
+            color: var(--primary-gradient-start);
+            font-weight: 500;
+            text-decoration: underline;
+            transition: opacity 0.2s;
+        }
+
+        a:hover {
+            opacity: 0.8;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(83.21deg, var(--primary-gradient-start) 0%, var(--primary-gradient-end) 100%);
+            color: white;
+            font-weight: 500;
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--radius-sm);
+            text-decoration: none;
+            transition: all 0.2s ease;
+            margin-top: 1rem;
+        }
+
+        .cta-button:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 640px) {
+            .page-container {
+                padding: 1rem 0.5rem;
+            }
+
+            .main-card {
+                padding: 1.5rem;
+            }
+
+            .section {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <div class="header-with-home">
+            <h1>Om Tillgång appen</h1>
+        </div>
+
+        <div class="main-card">
+            <div class="description">
+                <p>
+                    Tillgång är en web app med öppen-källkod som kan underlätta uthyrningar eller utlåningar av produkter. 
+                    Det kan till exempel användas på lokala mötesplatser som ger människor tillgång till utrustning. 
+                    Idag används Tillgång appen på Navet i Sege Park - <a href="https://navet.tillgang.org" target="_blank">navet.tillgang.org</a>.
+                </p>
+            </div>
+
+            <div class="section">
+                <h2>Vad är Tillgång?</h2>
+                <p>
+                    Tillgång gör det enkelt att visa upp vilka produkter som finns tillgängliga för lån eller uthyrning.
+                    Appen hjälper både användare och administratörer att hålla koll på bokningsstatistik, tillgänglighet, 
+                    och gör det smidigt att hantera både förfrågningar och bekräftelser.
+                </p>
+            </div>
+
+            <div class="section">
+                <h2>Skapa din egen instans!</h2>
+                <p>
+                    Man skulle kunna sätta upp sådana appar i andra områden. Om ni är tekniskt-kunniga kan ni följa 
+                    instruktioner på <a href="https://github.com/Az-source-create/tillgng-2" target="_blank">GitHub</a> 
+                    och sätta upp er egen instans.
+                </p>
+                <p>
+                    Eller så kan ni höra av er till <a href="https://Drevet.org" target="_blank">Drevet.org</a> så hjälper vi er med detta.
+                </p>
+                <a href="https://github.com/Az-source-create/tillgng-2" class="cta-button" target="_blank">Se instruktioner på GitHub</a>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>
